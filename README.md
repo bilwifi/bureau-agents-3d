@@ -16,7 +16,7 @@ Trois vues :
 | `/pixel` | Bureau en pixel art |
 | `/tableau` | Tableau chiffré : agents en cours, parcours des lots, chronologie |
 
-Le serveur ne fait **que lire** : journaux, transcripts, liste des processus, verrous de campagne. Il ne lance, n'arrête et n'écrit rien.
+Le serveur lit les journaux, transcripts, processus et verrous de campagne. Il n'agit que sur demande explicite depuis la page (voir *Agir sur les agents*), et chaque action est journalisée.
 
 ## Installation sur un poste
 
@@ -53,10 +53,31 @@ Variables d'environnement prioritaires : `PORT`, `CODEX_OUT`, `CLAUDE_PROJECTS`,
 - **Tâche** : première ligne `Tâche :` / `Mission :` de la consigne (le passage en gras de préférence), sinon la phrase `Tu es …`, sinon la première phrase utile. Pour un sous-agent Claude, sa description ; pour une session, son titre et la dernière demande.
 - **Verdict** : `P0=`, `P1=`, `QUALIFIÉ` / `NON QUALIFIÉ` et le premier SHA dans les 700 premiers caractères du rapport final.
 
+## Agir sur les agents depuis le bureau 3D
+
+Clic sur un robot (ou sur une ligne du fil d'événements) : sa fiche s'ouvre avec, selon l'agent :
+
+| Action | Pour qui | Ce qui se passe |
+|---|---|---|
+| 💬 **Poser une question** | agents Codex, sessions Claude | Une **copie** de l'agent, avec toute sa mémoire, répond dans l'onglet *Questions*. L'agent lui-même n'est pas dérangé. Copie Codex en lecture seule (`codex exec fork --ephemeral`, bac à sable `read-only`) ; copie Claude limitée à `Read, Grep, Glob` et non enregistrée. |
+| ↪ **Consigne de suite** | agents Codex terminés | La consigne est envoyée dans **sa** conversation (`codex exec resume`) : il reprend avec tout son contexte, sous un nouveau nom (`…-suite1`), et revient au bureau comme un nouveau robot. |
+| ⏹ **Arrêter** | agents Codex en cours | `SIGTERM` à l'agent et à ses commandes (jamais `SIGKILL`) : les verrous de campagne libèrent leur place, le journal se termine par `exit=143`. |
+| ＋ **Nouvelle mission** (bouton du haut, touche `M`) | — | Rôle, lot, tour → nom déduit (`prod-B-180`, `B-180-revue-r2`…), consigne complète, confirmation. Lancée par `codexRun` s'il est configuré (ex. `codex-run.sh` du kit), sinon par `lanceur.sh`. |
+
+À savoir :
+
+- **Coût** : une question recharge tout le contexte de l'agent (ex. ~385 000 jetons pour un diagnostic de taille moyenne). À réserver aux vraies questions.
+- **Claude en ligne de commande** : les questions aux sessions Claude utilisent le binaire `claude`. Il doit être connecté une fois sur le poste (`claude`, puis `/login`) ; sinon la fiche l'indique.
+- **Sous-agents Claude** : on ne peut pas les interroger directement ; passer par leur session parente.
+- **Sécurité** : les actions n'acceptent que des requêtes `POST` venant de la page elle-même (jeton tiré au démarrage du serveur, hôte et origine vérifiés). Chaque action est journalisée dans `donnees/actions.log`. `"actions": false` dans `config.json` remet le bureau en lecture seule.
+- **Données locales** : `donnees/` (consignes lancées, réponses, journal des actions, sorties du lanceur) est ignoré par git.
+
+Clés de configuration propres aux actions : `actions`, `codexModel`, `codexBin`, `claudeBin` (détectés sinon), `depot` (dossier de travail des missions), `codexRun` (script de lancement du poste).
+
 ## Commandes du bureau 3D
 
-Glisser : tourner · molette : zoom · double-clic : recentrer · clic sur un robot : consigne, rapport et journal · `L` : tâches affichées ou non · `T` : caméra automatique · `N` : jour / nuit · `Échap` : fermer.
+Glisser : tourner · molette : zoom · double-clic : recentrer · clic sur un robot : consigne, rapport, journal, questions et actions · `M` : nouvelle mission · `L` : tâches affichées ou non · `T` : caméra automatique · `N` : jour / nuit · `Échap` : fermer.
 
 ## Confidentialité
 
-Le serveur écoute sur `127.0.0.1` par défaut : journaux et transcripts restent sur le poste. Ne l'exposer sur le réseau (`"hote": "0.0.0.0"`) que sur un réseau de confiance.
+Le serveur écoute sur `127.0.0.1` par défaut : journaux et transcripts restent sur le poste. Ne l'exposer sur le réseau (`"hote": "0.0.0.0"`) que sur un réseau de confiance, **et alors avec `"actions": false`** : la page embarque le jeton, donc toute personne qui l'ouvre pourrait lancer ou arrêter des agents.

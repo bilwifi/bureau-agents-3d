@@ -55,6 +55,37 @@ body.taches-off .bulle .b-tache { display: none; }
 .tiroir button { background: rgba(255,255,255,.06); color: var(--texte); border: 1px solid var(--bord); border-radius: 8px; padding: 5px 11px; cursor: pointer; font: inherit; font-size: 12px; }
 .tiroir button.choisi { background: var(--texte); color: #0b0c12; }
 .tiroir pre { margin: 0; padding: 16px; overflow: auto; flex: 1; white-space: pre-wrap; overflow-wrap: anywhere; font: 12px/1.55 "JetBrains Mono", monospace; }
+#t-actions { display: flex; gap: 8px; flex-wrap: wrap; padding: 10px 16px; border-bottom: 1px solid var(--bord); align-items: center; }
+#t-actions:empty { display: none; }
+#t-actions .note { color: var(--doux); font-size: 11px; }
+.tiroir button.danger { border-color: rgba(255,107,107,.5); color: var(--rouge); }
+.tiroir button.primaire, .modale button.primaire { background: var(--bleu); color: #0b0c12; border-color: var(--bleu); font-weight: 600; }
+.formulaire { padding: 12px 16px; border-bottom: 1px solid var(--bord); display: grid; gap: 8px; }
+.formulaire[hidden] { display: none; }
+.formulaire label { font-size: 11px; color: var(--doux); display: grid; gap: 4px; }
+.formulaire textarea, .formulaire input, .formulaire select { width: 100%; background: rgba(0,0,0,.35); color: var(--texte); border: 1px solid var(--bord); border-radius: 8px; padding: 8px 10px; font: 12px/1.5 "JetBrains Mono", monospace; resize: vertical; }
+.formulaire textarea { min-height: 90px; }
+.formulaire .ligne { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.formulaire input[type=checkbox] { width: auto; margin: 0; }
+.formulaire .confirme { display: flex; gap: 6px; align-items: center; font-size: 12px; color: var(--texte); }
+.formulaire .etat { font-size: 12px; color: var(--doux); }
+.formulaire .etat.erreur { color: var(--rouge); }
+.formulaire .etat.ok { color: var(--vert); }
+.qr { padding: 12px 16px; overflow: auto; flex: 1; display: none; }
+.qr.visible { display: block; }
+.qr .item { border: 1px solid var(--bord); border-radius: 10px; padding: 10px 12px; margin-bottom: 10px; background: rgba(0,0,0,.2); }
+.qr .q { font-weight: 600; margin-bottom: 6px; }
+.qr .q small { color: var(--doux); font-weight: 400; margin-left: 6px; }
+.qr .r { white-space: pre-wrap; font: 12px/1.55 "JetBrains Mono", monospace; color: #dfe3ee; }
+.qr .attente { color: var(--orange); }
+.modale { position: fixed; inset: 0; z-index: 30; display: none; place-items: center; background: rgba(4,5,9,.55); }
+.modale.ouverte { display: grid; }
+.modale .carte { width: min(640px, calc(100% - 32px)); max-height: calc(100% - 40px); overflow: auto; padding: 4px 0 8px; }
+.modale h2 { margin: 0; padding: 14px 16px 6px; font-size: 15px; letter-spacing: .08em; }
+.modale p { margin: 0; padding: 0 16px 6px; color: var(--doux); font-size: 12px; }
+.modale button { background: rgba(255,255,255,.06); color: var(--texte); border: 1px solid var(--bord); border-radius: 8px; padding: 6px 12px; cursor: pointer; font: inherit; font-size: 12px; }
+#fil div[data-nom] { cursor: pointer; }
+#fil div[data-nom]:hover { color: var(--texte); }
 #chargement { position: fixed; inset: 0; display: grid; place-items: center; color: var(--doux); letter-spacing: .3em; font-size: 12px; z-index: 20; background: #07080d; transition: opacity .8s; }
 @media (max-width: 760px) { #legende { display: none; } .kpi { min-width: 0; flex: 1; } #liens { margin-left: 0; } }
 </style>
@@ -76,7 +107,7 @@ body.taches-off .bulle .b-tache { display: none; }
   <div class="kpi verre"><span>Terminés 24 h</span><b id="k-jour">–</b></div>
   <div class="kpi verre"><span>Quota Codex</span><b id="k-quota">–</b></div>
   <div class="kpi verre" id="k-alim-c"><span>Alimentation</span><b id="k-alim">–</b></div>
-  <div id="liens" class="verre"><button id="b-taches" title="Afficher les tâches (L)">🏷 Tâches</button><button id="b-tour" title="Caméra automatique (T)">🎬 Tournage</button><button id="b-nuit" title="Jour / nuit (N)">🌙 Nuit</button><a href="/pixel">Pixel</a><a href="/tableau">Tableau →</a></div>
+  <div id="liens" class="verre"><button id="b-mission" title="Lancer un agent Codex (M)" hidden>＋ Mission</button><button id="b-taches" title="Afficher les tâches (L)">🏷 Tâches</button><button id="b-tour" title="Caméra automatique (T)">🎬 Tournage</button><button id="b-nuit" title="Jour / nuit (N)">🌙 Nuit</button><a href="/pixel">Pixel</a><a href="/tableau">Tableau →</a></div>
 </div>
 <div id="fil" class="verre"><div>En attente des premières nouvelles…</div></div>
 <div id="legende" class="verre">
@@ -86,9 +117,38 @@ body.taches-off .bulle .b-tache { display: none; }
 </div>
 <div id="info" class="verre"></div>
 <aside class="tiroir verre" id="tiroir">
-  <div class="entete"><strong id="t-nom"></strong><span class="onglets"><button data-v="consigne">Consigne</button> <button data-v="rapport" class="choisi">Rapport final</button> <button data-v="journal">Journal</button></span><button id="t-fermer">Fermer</button></div>
+  <div class="entete"><strong id="t-nom"></strong><span class="onglets"><button data-v="consigne">Consigne</button> <button data-v="rapport" class="choisi">Rapport</button> <button data-v="journal">Journal</button> <button data-v="questions">Questions</button></span><button id="t-fermer">Fermer</button></div>
+  <div id="t-actions"></div>
+  <form class="formulaire" id="f-question" hidden>
+    <label>Question à une copie de l'agent (lecture seule ; l'agent lui-même n'est pas dérangé)
+      <textarea name="question" placeholder="Où en es-tu ? Qu'est-ce qui te bloque ? Qu'as-tu modifié ?" required></textarea></label>
+    <div class="ligne"><button class="primaire" type="submit">Envoyer la question</button><button type="button" data-annuler>Annuler</button><span class="etat"></span></div>
+  </form>
+  <form class="formulaire" id="f-suite" hidden>
+    <label>Consigne de suite, envoyée dans la conversation de l'agent (il reprend avec toute sa mémoire, accès complet au dépôt)
+      <textarea name="consigne" placeholder="Ex. : corrige le P1 relevé par la revue r5, puis relance verify et pousse ta branche." required></textarea></label>
+    <label>Nom du nouveau travail<input name="nom" required pattern="[A-Za-z0-9][A-Za-z0-9._-]{2,60}"></label>
+    <div class="ligne"><label class="confirme"><input type="checkbox" name="ok" required> Je confirme le lancement</label></div>
+    <div class="ligne"><button class="primaire" type="submit">Lancer la suite</button><button type="button" data-annuler>Annuler</button><span class="etat"></span></div>
+  </form>
   <pre id="t-texte"></pre>
+  <div class="qr" id="t-qr"></div>
 </aside>
+<div class="modale" id="modale-mission">
+  <form class="carte verre formulaire" id="f-mission" style="border:0">
+    <h2>NOUVELLE MISSION CODEX</h2>
+    <p id="m-via"></p>
+    <div class="ligne">
+      <label style="flex:1">Rôle<select name="role"><option value="prod">Production</option><option value="correction">Correction</option><option value="revue">Revue</option><option value="int">Intégration</option><option value="diag">Diagnostic</option></select></label>
+      <label style="flex:1">Lot<input name="lot" placeholder="B-180, hub-h1-4…" required></label>
+      <label style="flex:1">Tour<input name="tour" type="number" min="1" placeholder="—"></label>
+    </div>
+    <label>Nom du travail (déduit, modifiable)<input name="nom" required pattern="[A-Za-z0-9][A-Za-z0-9._-]{2,60}"></label>
+    <label>Consigne complète<textarea name="consigne" style="min-height:200px" placeholder="Réponds en français. Dépôt : … Tâche : **…**" required></textarea></label>
+    <div class="ligne"><label class="confirme"><input type="checkbox" name="ok" required> Je confirme le lancement (l'agent aura un accès complet au dépôt)</label></div>
+    <div class="ligne"><button class="primaire" type="submit">Lancer la mission</button><button type="button" data-annuler>Annuler</button><span class="etat"></span></div>
+  </form>
+</div>
 
 <script type="module">
 import * as THREE from 'three';
@@ -101,6 +161,7 @@ import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 
 // ================= Constantes =================
+const JETON_PAGE = document.querySelector('meta[name=jeton]')?.content || '';
 const ROLE = {
   production: { c: 0x5b8cff, nom: 'Production' }, correction: { c: 0xa77bff, nom: 'Correction' },
   revue: { c: 0xffb347, nom: 'Revue' }, integration: { c: 0x4ff0a0, nom: 'Intégration' },
@@ -436,10 +497,10 @@ function trajet(depuis, place, cible) {
   pts.push({ x: cible.couloirX, z: COULOIR }, { x: cible.couloirX, z: cible.z }, { x: cible.x, z: cible.z });
   return pts;
 }
-function noter(html, heure = new Date()) {
-  fil.unshift(`<span>${heure.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</span> ${html}`);
+function noter(html, heure = new Date(), nom = null) {
+  fil.unshift(`<div${nom ? ` data-nom="${esc(nom)}" title="Ouvrir la fiche"` : ''}><span>${heure.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</span> ${html}</div>`);
   fil.length = Math.min(fil.length, 8);
-  document.getElementById('fil').innerHTML = fil.map(l => `<div>${l}</div>`).join('');
+  document.getElementById('fil').innerHTML = fil.join('');
 }
 // Tâche raccourcie pour la bulle : retire la formule de rôle (« Relecteur indépendant du », « Agent producteur du »…).
 function tacheCourte(j) {
@@ -499,11 +560,11 @@ function appliquer(s) {
     rb.verdict = verdictCourt(rb.job); rb.alerte = rb.verdict.c === '#ff6b6b';
     occupees.delete(rb.place);
     rb.aller(trajet(rb.g.position, rb.place, POSTE_IMPRIMANTE)); rb.mode = 'vers-imprimante';
-    noter(`<b>${esc(rb.job.titre || rb.nom)}</b> a terminé : <span style="color:${rb.verdict.c}">${esc(rb.verdict.txt)}</span>`);
+    noter(`<b>${esc(rb.job.titre || rb.nom)}</b> a terminé : <span style="color:${rb.verdict.c}">${esc(rb.verdict.txt)}</span>`, new Date(), rb.nom);
   }
   if (premier) {
     fil.length = 0;
-    s.travaux.filter(t => t.fin && now - t.fin < 12 * 3600000).sort((a, b) => a.fin - b.fin).slice(-6).forEach(t => { const v = verdictCourt(t); noter(`<b>${esc(t.titre || t.nom)}</b> terminé : <span style="color:${v.c}">${esc(v.txt)}</span>`, new Date(t.fin)); });
+    s.travaux.filter(t => t.fin && now - t.fin < 12 * 3600000).sort((a, b) => a.fin - b.fin).slice(-6).forEach(t => { const v = verdictCourt(t); noter(`<b>${esc(t.titre || t.nom)}</b> terminé : <span style="color:${v.c}">${esc(v.txt)}</span>`, new Date(t.fin), t.nom); });
     if (!fil.length) noter('Rien de terminé ces 12 dernières heures.');
     document.getElementById('chargement').style.opacity = 0; setTimeout(() => document.getElementById('chargement').remove(), 900);
   }
@@ -517,6 +578,7 @@ function appliquer(s) {
   document.getElementById('k-quota').textContent = s.quota ? s.quota.restant + ' %' : '–';
   document.getElementById('k-alim').textContent = bt ? (bt.secteur ? 'Secteur' : `🔋 ${bt.pourcent} %`) : '–';
   document.getElementById('k-alim-c').classList.toggle('alerte', !!(bt && !bt.secteur && vivants.length));
+  document.getElementById('b-mission').hidden = !(s.actions && JETON_PAGE);
   document.getElementById('maj').textContent = `en direct · ${new Date(now).toLocaleTimeString('fr-FR')} · charge ${s.machine.charge[0]}`;
   dessinerEcran();
 }
@@ -719,23 +781,118 @@ document.getElementById('b-tour').onclick = basculeTour;
 document.getElementById('b-nuit').onclick = basculeNuit;
 const basculeTaches = () => { document.body.classList.toggle('taches-off'); document.getElementById('b-taches').style.opacity = document.body.classList.contains('taches-off') ? .45 : ''; };
 document.getElementById('b-taches').onclick = basculeTaches;
-addEventListener('keydown', e => { if (e.key === 'l' || e.key === 'L') basculeTaches(); if (e.key === 't' || e.key === 'T') basculeTour(); if (e.key === 'n' || e.key === 'N') basculeNuit(); if (e.key === 'Escape') fermer(); });
+addEventListener('keydown', e => { if (/INPUT|TEXTAREA|SELECT/.test(document.activeElement?.tagName)) { if (e.key === 'Escape') document.activeElement.blur(); return; } if (e.key === 'l' || e.key === 'L') basculeTaches(); if (e.key === 't' || e.key === 'T') basculeTour(); if (e.key === 'n' || e.key === 'N') basculeNuit(); if (e.key === 'Escape') fermer(); });
 
-let tiroirNom = null, tiroirVue = 'rapport';
-async function chargerTiroir() {
-  const r = await fetch(`/api/${tiroirVue}?nom=${encodeURIComponent(tiroirNom)}`);
-  const pre = document.getElementById('t-texte'); pre.textContent = (await r.text()) || 'Rien à afficher.'; pre.scrollTop = tiroirVue === 'journal' ? 1e9 : 0;
+let tiroirNom = null, tiroirVue = 'rapport', minuterieQR = null;
+const $ = id => document.getElementById(id);
+const JETON = document.querySelector('meta[name=jeton]')?.content || '';
+async function poster(chemin, donneesEnvoyees) {
+  const r = await fetch(chemin, { method: 'POST', headers: { 'content-type': 'application/json', 'x-bureau-jeton': JETON }, body: JSON.stringify(donneesEnvoyees) });
+  const j = await r.json().catch(() => ({ erreur: `réponse illisible (${r.status})` }));
+  if (!r.ok || j.erreur) throw new Error(j.erreur || r.status);
+  return j;
 }
-function ouvrir(nom) {
-  const j = robots.get(nom)?.job;
-  tiroirNom = nom; document.getElementById('t-nom').textContent = j?.titre || nom; document.getElementById('tiroir').classList.add('ouvert');
-  tiroirVue = j && !j.aRapport && !j.session ? 'journal' : 'rapport';
-  document.querySelectorAll('.onglets button').forEach(x => x.classList.toggle('choisi', x.dataset.v === tiroirVue));
+const travailDe = nom => robots.get(nom)?.job || donnees?.travaux.find(t => t.nom === nom) || donnees?.sessions?.find(t => t.nom === nom);
+const estCodex = j => j && !j.session && j.agent !== 'claude' && !/^(session|claude):/.test(j.nom);
+const enCours = j => j && (j.statut === 'actif' || j.statut === 'silencieux');
+
+async function chargerTiroir() {
+  clearInterval(minuterieQR);
+  const pre = $('t-texte'), qr = $('t-qr');
+  if (tiroirVue === 'questions') {
+    pre.style.display = 'none'; qr.classList.add('visible');
+    await chargerQuestions(); minuterieQR = setInterval(chargerQuestions, 3000);
+    return;
+  }
+  pre.style.display = ''; qr.classList.remove('visible');
+  const r = await fetch(`/api/${tiroirVue}?nom=${encodeURIComponent(tiroirNom)}`);
+  pre.textContent = (await r.text()) || 'Rien à afficher.'; pre.scrollTop = tiroirVue === 'journal' ? 1e9 : 0;
+}
+async function chargerQuestions() {
+  if (!tiroirNom) return;
+  const liste = await (await fetch(`/api/questions?nom=${encodeURIComponent(tiroirNom)}`, { cache: 'no-store' })).json();
+  $('t-qr').innerHTML = liste.length ? liste.map(q => `<div class="item"><div class="q">❓ ${esc(q.question)}<small>${new Date(q.debut).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })} · ${q.etat === 'en cours' ? 'la copie réfléchit… ' + duree(Date.now() - q.debut) : q.etat === 'repondu' ? 'répondu' : 'échec'}</small></div>` +
+    (q.reponse?.trim() ? `<div class="r">${esc(q.reponse.trim())}</div>` : q.etat === 'en cours' ? '<div class="r attente">⏳ La copie de l\'agent recharge son contexte puis répond (souvent 30 s à quelques minutes).</div>' : '<div class="r">Pas de réponse.</div>') + '</div>').join('')
+    : '<div class="r" style="color:var(--doux)">Aucune question posée à cet agent depuis le démarrage du serveur.</div>';
+  if (!liste.some(q => q.etat === 'en cours')) clearInterval(minuterieQR);
+}
+function choisirVue(v) {
+  tiroirVue = v;
+  document.querySelectorAll('.onglets button').forEach(x => x.classList.toggle('choisi', x.dataset.v === v));
   chargerTiroir();
 }
-function fermer() { document.getElementById('tiroir').classList.remove('ouvert'); tiroirNom = null; }
-document.getElementById('t-fermer').onclick = fermer;
-document.querySelector('.onglets').addEventListener('click', e => { const o = e.target.closest('button'); if (!o) return; tiroirVue = o.dataset.v; document.querySelectorAll('.onglets button').forEach(x => x.classList.toggle('choisi', x === o)); chargerTiroir(); });
+function boutonsActions(j) {
+  const zone = $('t-actions'); zone.innerHTML = '';
+  if (!donnees?.actions || !JETON) { zone.innerHTML = '<span class="note">Actions désactivées sur ce poste (lecture seule).</span>'; return; }
+  const b = (txt, cls, fn, titre = '') => { const e = document.createElement('button'); e.type = 'button'; e.textContent = txt; e.className = cls; e.title = titre; e.onclick = fn; zone.appendChild(e); };
+  const peutQuestion = j?.session || (estCodex(j) && j.aSession);
+  if (peutQuestion) b('💬 Poser une question', '', () => montrer('f-question'), "Une copie de l'agent répond ; l'agent n'est pas dérangé");
+  if (estCodex(j) && j.aSession && !enCours(j)) b('↪ Consigne de suite', '', () => { montrer('f-suite'); $('f-suite').nom.value = nomSuite(j.nom); }, 'Reprend sa conversation avec une nouvelle instruction');
+  if (estCodex(j) && enCours(j)) b('⏹ Arrêter', 'danger', () => arreterAgent(j.nom), 'Arrêt normal (SIGTERM), jamais forcé');
+  if (j?.agent === 'claude' && !j.session) zone.insertAdjacentHTML('beforeend', '<span class="note">Sous-agent Claude : interrogez plutôt sa session parente.</span>');
+  if (estCodex(j) && !j.aSession) zone.insertAdjacentHTML('beforeend', '<span class="note">Identifiant de session Codex absent du journal : ni question ni suite possibles.</span>');
+}
+function nomSuite(nom) { const base = nom.replace(/-suite\d+$/, ''); let i = 1; while (donnees?.travaux.some(t => t.nom === `${base}-suite${i}`)) i++; return `${base}-suite${i}`; }
+function montrer(id) {
+  for (const f of ['f-question', 'f-suite']) $(f).hidden = f !== id;
+  const f = $(id); f.querySelector('.etat').textContent = ''; f.querySelector('textarea').focus();
+}
+function cacherFormulaires() { $('f-question').hidden = true; $('f-suite').hidden = true; }
+function ouvrir(nom) {
+  const j = travailDe(nom);
+  tiroirNom = nom; $('t-nom').textContent = j?.tache || j?.titre || nom; $('tiroir').classList.add('ouvert');
+  cacherFormulaires(); boutonsActions(j);
+  choisirVue(j && !j.aRapport && !j.session ? 'journal' : 'rapport');
+}
+function fermer() { $('tiroir').classList.remove('ouvert'); tiroirNom = null; clearInterval(minuterieQR); fermerMission(); }
+$('t-fermer').onclick = fermer;
+document.querySelector('.onglets').addEventListener('click', e => { const o = e.target.closest('button'); if (o) choisirVue(o.dataset.v); });
+document.querySelectorAll('[data-annuler]').forEach(b => b.onclick = () => { cacherFormulaires(); fermerMission(); });
+$('fil').addEventListener('click', e => { const d = e.target.closest('[data-nom]'); if (d && travailDe(d.dataset.nom)) ouvrir(d.dataset.nom); });
+
+async function soumettre(form, envoi, succes) {
+  const etat = form.querySelector('.etat'), bouton = form.querySelector('button[type=submit]');
+  etat.className = 'etat'; etat.textContent = 'Envoi…'; bouton.disabled = true;
+  try { const r = await envoi(); etat.className = 'etat ok'; etat.textContent = succes(r); return r; }
+  catch (err) { etat.className = 'etat erreur'; etat.textContent = '✖ ' + err.message; }
+  finally { bouton.disabled = false; }
+}
+$('f-question').addEventListener('submit', async e => {
+  e.preventDefault(); const f = e.target, nom = tiroirNom;
+  const r = await soumettre(f, () => poster('/api/action/question', { nom, question: f.question.value }), () => 'Question envoyée : la réponse arrive dans l\'onglet Questions.');
+  if (r) { f.question.value = ''; noter(`💬 Question envoyée à <b>${esc(travailDe(nom)?.titre || nom)}</b>`); setTimeout(() => { cacherFormulaires(); choisirVue('questions'); }, 700); }
+});
+$('f-suite').addEventListener('submit', async e => {
+  e.preventDefault(); const f = e.target, source = tiroirNom;
+  const r = await soumettre(f, () => poster('/api/action/suite', { source, nom: f.nom.value, consigne: f.consigne.value }), r => `Lancé : ${r.nom}. Le robot arrive par la porte.`);
+  if (r) { f.consigne.value = ''; f.ok.checked = false; noter(`↪ Suite lancée pour <b>${esc(source)}</b> : ${esc(r.nom)}`); }
+});
+async function arreterAgent(nom) {
+  if (!confirm(`Arrêter ${nom} ?\n\nArrêt normal (SIGTERM) de l'agent et de ses commandes ; sa place d'essais est libérée. Le travail en cours est perdu.`)) return;
+  try { const r = await poster('/api/action/arret', { nom }); noter(`⏹ Arrêt demandé pour <b>${esc(nom)}</b> (${r.signales} processus)`); $('t-actions').insertAdjacentHTML('beforeend', '<span class="note">Arrêt envoyé.</span>'); }
+  catch (err) { alert('Arrêt impossible : ' + err.message); }
+}
+// ----- Nouvelle mission -----
+const fm = $('f-mission');
+function nomMission() {
+  const lot = fm.lot.value.trim().replace(/\s+/g, '-'), tour = fm.tour.value ? `-r${fm.tour.value}` : '';
+  if (!lot) return '';
+  return { prod: `prod-${lot}${tour}`, correction: `${lot}-correction${tour}`, revue: `${lot}-revue${tour}`, int: `int-${lot}${tour}`, diag: `diag-${lot}${tour}` }[fm.role.value];
+}
+['role', 'lot', 'tour'].forEach(k => fm[k].addEventListener('input', () => { fm.nom.value = nomMission(); }));
+function ouvrirMission() {
+  $('m-via').textContent = donnees?.codexRun ? 'Lancée par le script de lancement du poste (codex-run.sh : quota, veille, modèle de repli).' : 'Lancée par le lanceur intégré (lanceur.sh), dans le dossier de travail configuré.';
+  fm.querySelector('.etat').textContent = ''; $('modale-mission').classList.add('ouverte'); fm.lot.focus();
+}
+function fermerMission() { $('modale-mission').classList.remove('ouverte'); }
+$('b-mission').onclick = ouvrirMission;
+$('modale-mission').addEventListener('click', e => { if (e.target.id === 'modale-mission') fermerMission(); });
+fm.addEventListener('submit', async e => {
+  e.preventDefault();
+  const r = await soumettre(fm, () => poster('/api/action/mission', { nom: fm.nom.value, consigne: fm.consigne.value }), r => `Lancée : ${r.nom}. Le robot arrive par la porte.`);
+  if (r) { noter(`＋ Mission lancée : <b>${esc(r.nom)}</b>`); fm.reset(); setTimeout(fermerMission, 1200); }
+});
+addEventListener('keydown', e => { if ((e.key === 'm' || e.key === 'M') && !/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName) && !$('b-mission').hidden) ouvrirMission(); });
 
 async function boucle() {
   try { appliquer(await (await fetch('/api/etat', { cache: 'no-store' })).json()); }
@@ -743,7 +900,7 @@ async function boucle() {
   setTimeout(boucle, 4000);
 }
 dessinerEcran(); dessinerHorloge(); ambiance(); boucle();
-window.__bureau = { robots, appliquer, get donnees() { return donnees; } };
+window.__bureau = { robots, appliquer, ouvrir, get donnees() { return donnees; } };
 </script>
 </body>
 </html>

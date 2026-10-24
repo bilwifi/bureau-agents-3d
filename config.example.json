@@ -1,12 +1,25 @@
 {
   "port": 4317,
   "hote": "127.0.0.1",
-  "codexOut": ["/private/tmp/claude-*/*/*/scratchpad/codex"],
-  "consignes": ["/private/tmp/claude-*/*/*/scratchpad", "/private/tmp/claude-*/*/*/scratchpad/codex"],
-  "claudeProjects": ["~/.claude/projects/*"],
+  "codexOut": [
+    "/private/tmp/claude-*/*/*/scratchpad/codex"
+  ],
+  "consignes": [
+    "/private/tmp/claude-*/*/*/scratchpad",
+    "/private/tmp/claude-*/*/*/scratchpad/codex"
+  ],
+  "claudeProjects": [
+    "~/.claude/projects/*"
+  ],
   "claudeProjectFilter": null,
   "campaignLock": "/tmp/jnapps-campaign.lock",
   "placesMax": 6,
   "silenceMinutes": 15,
-  "fenetreHeures": 48
+  "fenetreHeures": 48,
+  "actions": true,
+  "codexModel": "gpt-6.1-sol",
+  "codexBin": null,
+  "claudeBin": null,
+  "depot": null,
+  "codexRun": null
 }

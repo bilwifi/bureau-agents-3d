@@ -7,6 +7,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { creerActions, JETON } from './actions.mjs';
 
 const ICI = path.dirname(fileURLToPath(import.meta.url));
 
@@ -22,6 +23,12 @@ const DEFAUT = {
   placesMax: 6,
   silenceMinutes: 15,
   fenetreHeures: 48,
+  actions: true,           // false : bureau en lecture seule (aucun bouton d'action)
+  codexModel: 'gpt-6.1-sol',
+  codexBin: null,          // détecté (application ChatGPT, Homebrew…)
+  claudeBin: null,         // détecté (application Claude, PATH…)
+  depot: null,             // dossier de travail des nouvelles missions
+  codexRun: null,          // script du poste pour les nouvelles missions (ex. codex-run.sh du kit) ; sinon lanceur.sh
 };
 const CONFIG = (() => {
   let c = { ...DEFAUT };
@@ -105,7 +112,7 @@ function travauxVivants() {
   try {
     const ps = execFileSync('ps', ['-axo', 'pid=,etime=,command='], { encoding: 'utf8', maxBuffer: 1 << 24 });
     for (const ligne of ps.split('\n')) {
-      const m = ligne.match(/^\s*(\d+)\s+(\S+)\s+(?:\/bin\/)?sh\s+\S*codex-run\.sh\s+(\S+)(?:\s+(\S+))?/);
+      const m = ligne.match(/^\s*(\d+)\s+(\S+)\s+(?:\/bin\/)?sh\s+\S*(?:codex-run|lanceur)\.sh\s+(\S+)(?:\s+(\S+))?/);
       if (m) vivants.set(m[3], { pid: Number(m[1]), depuisSec: etimeEnSec(m[2]), consigne: m[4] || null });
     }
   } catch {}
@@ -208,7 +215,7 @@ function consigneIndexee(nom) {
 function agentsCodex(maintenant) {
   const vivants = travauxVivants();
   const noms = new Map();
-  for (const dir of CONFIG.codexOut.flatMap(developper)) {
+  for (const dir of [...CONFIG.codexOut.flatMap(developper), path.join(ICI, 'donnees', 'codex')]) {
     let fichiers = []; try { fichiers = fs.readdirSync(dir); } catch { continue; }
     for (const f of fichiers) {
       if (!f.endsWith('.log') || f === 'quota-bas.log') continue;
@@ -230,7 +237,7 @@ function agentsCodex(maintenant) {
     let st = null; try { st = fs.statSync(log); } catch {}
     const vivant = vivants.get(nom);
     const q = st ? queue(log, 300_000) : '';
-    const h = st ? tete(log, 600) : '';
+    const h = st ? tete(log, 3000) : '';
     const modele = (h.match(/^model=(\S+)/m) || [])[1] || null;
     const qm = h.match(/quota_used=([\d.]+) restant=([\d.]+) reinit=(\S+)/);
     if (qm && st && st.birthtimeMs > quotaDate) { quotaDate = st.birthtimeMs; quota = { utilise: Number(qm[1]), restant: Number(qm[2]), reinit: qm[3].replace('_', ' ') }; }
@@ -253,6 +260,7 @@ function agentsCodex(maintenant) {
       commande: vivant ? derniereCommande(q) : null,
       derniereMarque: vivant ? ([...q.matchAll(/\n(exec|codex|apply patch|tokens used)\n/g)].at(-1)?.[1] ?? null) : null,
       limite: /limite_atteinte=1/.test(q), repli: /fallback=gpt-6-sol/.test(q),
+      aSession: /session id:\s*[0-9a-f-]{36}/.test(h), lanceParBureau: /^lance_par=bureau/m.test(h),
       verdict: verdict(rapport), aRapport: !!rapport,
     });
   }
@@ -422,6 +430,40 @@ function etat() {
   };
 }
 
+// ---------- Actions ----------
+const actions = creerActions({ ICI, CONFIG, dossierCodex: n => dossiersCodex.get(n), fichierClaude: n => fichiersClaude.get(n) });
+const HOTES = new Set([`127.0.0.1:${CONFIG.port}`, `localhost:${CONFIG.port}`, `[::1]:${CONFIG.port}`]);
+function autorise(req) {
+  if (!CONFIG.actions) return 'actions désactivées sur ce poste';
+  if (req.headers['x-bureau-jeton'] !== JETON) return 'jeton absent ou périmé : rechargez la page';
+  if (CONFIG.hote === '127.0.0.1' && !HOTES.has(req.headers.host)) return 'hôte refusé';
+  const o = req.headers.origin; if (o && !HOTES.has(o.replace(/^https?:\/\//, ''))) return 'origine refusée';
+  return null;
+}
+function corps(req) {
+  return new Promise((ok, ko) => {
+    let t = ''; req.on('data', d => { t += d; if (t.length > 200_000) { ko(new Error('requête trop grosse')); req.destroy(); } });
+    req.on('end', () => { try { ok(JSON.parse(t || '{}')); } catch { ko(new Error('JSON invalide')); } });
+  });
+}
+async function action(req, res, url) {
+  if (req.method !== 'POST') return texte(res, 405, 'POST attendu');
+  const refus = autorise(req); if (refus) return texte(res, 403, JSON.stringify({ erreur: refus }), 'application/json');
+  try {
+    const b = await corps(req);
+    const nomOk = n => typeof n === 'string' && nomValide(n);
+    let r;
+    switch (url.pathname) {
+      case '/api/action/question': if (!nomOk(b.nom) || !b.question?.trim()) throw new Error('agent ou question manquant'); r = actions.poserQuestion(b.nom, String(b.question).slice(0, 4000)); break;
+      case '/api/action/suite': if (!nomOk(b.source)) throw new Error('agent source manquant'); r = actions.consigneDeSuite(b.source, String(b.nom || ''), String(b.consigne || '').slice(0, 50_000)); break;
+      case '/api/action/arret': if (!nomOk(b.nom)) throw new Error('agent manquant'); r = actions.arreter(b.nom); break;
+      case '/api/action/mission': r = actions.nouvelleMission(String(b.nom || ''), String(b.consigne || '').slice(0, 50_000)); break;
+      default: return texte(res, 404, '');
+    }
+    texte(res, 200, JSON.stringify({ ok: true, ...r }), 'application/json');
+  } catch (e) { texte(res, 400, JSON.stringify({ erreur: e.message }), 'application/json'); }
+}
+
 // ---------- Serveur HTTP ----------
 const TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.mjs': 'text/javascript; charset=utf-8', '.json': 'application/json', '.css': 'text/css' };
 const THREE_LOCAL = path.join(ICI, 'node_modules', 'three');
@@ -432,7 +474,9 @@ const nomValide = n => /^[\w.:-]+$/.test(n);
 http.createServer((req, res) => {
   const url = new URL(req.url, 'http://x');
   try {
-    if (url.pathname === '/api/etat') return texte(res, 200, JSON.stringify(etat()), 'application/json; charset=utf-8');
+    if (url.pathname.startsWith('/api/action/')) return void action(req, res, url);
+    if (url.pathname === '/api/etat') return texte(res, 200, JSON.stringify({ ...etat(), actions: !!CONFIG.actions, codexRun: !!CONFIG.codexRun }), 'application/json; charset=utf-8');
+    if (url.pathname === '/api/questions') { const nom = url.searchParams.get('nom') || ''; return texte(res, 200, JSON.stringify(nomValide(nom) ? actions.questionsDe(nom) : []), 'application/json; charset=utf-8'); }
     if (url.pathname === '/api/rapport' || url.pathname === '/api/journal') {
       const nom = url.searchParams.get('nom') || '', vue = url.pathname.slice(5);
       if (!nomValide(nom)) return texte(res, 400, '');
@@ -461,6 +505,7 @@ http.createServer((req, res) => {
     }
     const page = { '/': 'bureau3d.html', '/pixel': 'bureau.html', '/tableau': 'index.html' }[url.pathname];
     if (!page) return texte(res, 404, 'Introuvable');
-    texte(res, 200, fs.readFileSync(path.join(ICI, 'public', page)), TYPES['.html']);
+    const html = fs.readFileSync(path.join(ICI, 'public', page), 'utf8').replace('</head>', `<meta name="jeton" content="${CONFIG.actions ? JETON : ''}">\n</head>`);
+    texte(res, 200, html, TYPES['.html']);
   } catch (e) { texte(res, 500, String(e)); }
 }).listen(CONFIG.port, CONFIG.hote, () => console.log(`Bureau des agents (${os.hostname()}) : http://${CONFIG.hote}:${CONFIG.port}`));
