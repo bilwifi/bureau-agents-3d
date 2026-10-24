@@ -1,0 +1,246 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tableau des agents</title>
+<style>
+:root {
+  --fond: #f6f5f1; --carte: #ffffff; --trait: #e3e0d8; --texte: #1d1c1a; --doux: #6b675f;
+  --actif: #1f7a4d; --actif-f: #e3f3ea; --attente: #b26a00; --attente-f: #fbf0dc;
+  --echec: #b3261e; --echec-f: #fbe4e2; --info: #2557a7; --info-f: #e3ebf8;
+  --neutre: #8a857b; --neutre-f: #efede7;
+  --r-production: #2557a7; --r-correction: #6a4bb5; --r-revue: #b26a00; --r-integration: #1f7a4d; --r-diagnostic: #8a857b;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --fond: #161614; --carte: #201f1c; --trait: #34322d; --texte: #ecebe6; --doux: #a29d92;
+  --actif: #5cc48d; --actif-f: #1d3328; --attente: #e5a23d; --attente-f: #3a2e18; --echec: #f07a70; --echec-f: #3d201d;
+  --info: #7aa6ee; --info-f: #1d2a40; --neutre: #a29d92; --neutre-f: #2a2925;
+  --r-production: #7aa6ee; --r-correction: #ab93ea; --r-revue: #e5a23d; --r-integration: #5cc48d; --r-diagnostic: #a29d92;
+} }
+:root[data-theme="dark"] {
+  --fond: #161614; --carte: #201f1c; --trait: #34322d; --texte: #ecebe6; --doux: #a29d92;
+  --actif: #5cc48d; --actif-f: #1d3328; --attente: #e5a23d; --attente-f: #3a2e18; --echec: #f07a70; --echec-f: #3d201d;
+  --info: #7aa6ee; --info-f: #1d2a40; --neutre: #a29d92; --neutre-f: #2a2925;
+  --r-production: #7aa6ee; --r-correction: #ab93ea; --r-revue: #e5a23d; --r-integration: #5cc48d; --r-diagnostic: #a29d92;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--fond); color: var(--texte); font: 14px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+main { max-width: 1280px; margin: 0 auto; padding: 20px 16px 60px; }
+header { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; margin-bottom: 16px; }
+h1 { font-size: 20px; margin: 0; }
+h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .06em; color: var(--doux); margin: 28px 0 10px; font-weight: 600; }
+.maj { color: var(--doux); font-size: 12px; }
+.alerte { background: var(--echec-f); color: var(--echec); border-radius: 8px; padding: 8px 12px; margin: 0 0 12px; font-weight: 500; }
+.alerte.douce { background: var(--attente-f); color: var(--attente); }
+.jauges { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 10px; }
+.jauge { background: var(--carte); border: 1px solid var(--trait); border-radius: 10px; padding: 12px 14px; }
+.jauge b { display: block; font-size: 24px; font-variant-numeric: tabular-nums; }
+.jauge span { color: var(--doux); font-size: 12px; }
+.barre { height: 6px; background: var(--neutre-f); border-radius: 3px; margin-top: 8px; overflow: hidden; }
+.barre i { display: block; height: 100%; background: var(--actif); }
+.bureaux { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 12px; }
+.bureau { background: var(--carte); border: 1px solid var(--trait); border-left: 4px solid var(--role); border-radius: 10px; padding: 14px; cursor: pointer; min-width: 0; }
+.bureau:hover { border-color: var(--role); }
+.bureau .haut { display: flex; justify-content: space-between; gap: 8px; align-items: center; }
+.bureau .nom { font-weight: 600; font-size: 15px; overflow-wrap: anywhere; }
+.role { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; color: var(--role); }
+.pastille { font-size: 11px; padding: 2px 8px; border-radius: 10px; white-space: nowrap; font-weight: 600; }
+.p-actif { background: var(--actif-f); color: var(--actif); }
+.p-silencieux, .p-acorriger { background: var(--attente-f); color: var(--attente); }
+.p-echec, .p-interrompu { background: var(--echec-f); color: var(--echec); }
+.p-termine { background: var(--info-f); color: var(--info); }
+.p-approuve { background: var(--actif-f); color: var(--actif); }
+.point { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: currentColor; margin-right: 5px; vertical-align: 1px; }
+.p-actif .point { animation: pulse 1.6s infinite; }
+@keyframes pulse { 50% { opacity: .25; } }
+.meta { color: var(--doux); font-size: 12px; margin: 6px 0; }
+.pensee { background: var(--fond); border-radius: 8px; padding: 8px 10px; font-size: 13px; margin-top: 8px; max-height: 7.5em; overflow: hidden; white-space: pre-wrap; overflow-wrap: anywhere; }
+.cmd { font: 12px ui-monospace, Menlo, monospace; color: var(--doux); margin-top: 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.vide { color: var(--doux); padding: 16px; background: var(--carte); border: 1px dashed var(--trait); border-radius: 10px; }
+.lots { background: var(--carte); border: 1px solid var(--trait); border-radius: 10px; padding: 6px 14px; }
+.lot { display: grid; grid-template-columns: 140px 1fr auto; gap: 12px; align-items: center; padding: 9px 0; border-bottom: 1px solid var(--trait); }
+.lot:last-child { border-bottom: 0; }
+.lot .titre { font-weight: 600; overflow-wrap: anywhere; }
+.chaine { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+.etape { font-size: 11px; padding: 3px 7px; border-radius: 6px; cursor: pointer; border: 1px solid transparent; white-space: nowrap; }
+.etape:hover { border-color: var(--texte); }
+.fleche { color: var(--doux); font-size: 11px; }
+.legende { display: flex; gap: 14px; flex-wrap: wrap; font-size: 12px; color: var(--doux); margin-top: 8px; }
+.legende i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 5px; vertical-align: -1px; }
+.chrono { background: var(--carte); border: 1px solid var(--trait); border-radius: 10px; padding: 12px 14px; overflow: hidden; }
+.chrono svg { width: 100%; display: block; }
+.chrono text { fill: var(--doux); font-size: 10px; }
+.tiroir { position: fixed; inset: 0 0 0 auto; width: min(760px, 100%); background: var(--carte); border-left: 1px solid var(--trait); box-shadow: -8px 0 30px rgba(0,0,0,.15); transform: translateX(100%); transition: transform .2s; display: flex; flex-direction: column; z-index: 10; }
+.tiroir.ouvert { transform: none; }
+.tiroir .entete { display: flex; justify-content: space-between; align-items: center; padding: 14px 16px; border-bottom: 1px solid var(--trait); gap: 8px; }
+.tiroir .onglets button, .tiroir .fermer { background: var(--fond); color: var(--texte); border: 1px solid var(--trait); border-radius: 6px; padding: 4px 10px; cursor: pointer; font: inherit; font-size: 12px; }
+.tiroir .onglets button.choisi { background: var(--texte); color: var(--carte); }
+.tiroir pre { margin: 0; padding: 16px; overflow: auto; flex: 1; white-space: pre-wrap; overflow-wrap: anywhere; font: 12px/1.5 ui-monospace, Menlo, monospace; }
+@media (max-width: 640px) { .lot { grid-template-columns: 1fr; gap: 4px; } .bureaux { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<main>
+  <header><h1>Tableau des agents</h1><span class="maj" id="maj">chargement…</span><a href="/" style="margin-left:auto;color:var(--info)">← Bureau 3D</a></header>
+  <div id="alertes"></div>
+  <div class="jauges" id="jauges"></div>
+
+  <h2>En ce moment</h2>
+  <div class="bureaux" id="bureaux"></div>
+
+  <h2>Parcours des lots</h2>
+  <div class="lots" id="lots"></div>
+  <div class="legende">
+    <span><i style="background:var(--info-f);border:1px solid var(--info)"></i>livré (production / correction)</span>
+    <span><i style="background:var(--attente-f);border:1px solid var(--attente)"></i>revue : à corriger</span>
+    <span><i style="background:var(--actif-f);border:1px solid var(--actif)"></i>revue sans défaut bloquant / qualifié</span>
+    <span><i style="background:var(--echec-f);border:1px solid var(--echec)"></i>échec ou interrompu</span>
+  </div>
+
+  <h2>Chronologie</h2>
+  <div class="chrono" id="chrono"></div>
+</main>
+
+<aside class="tiroir" id="tiroir">
+  <div class="entete">
+    <strong id="t-nom"></strong>
+    <span class="onglets"><button data-v="rapport" class="choisi">Rapport final</button> <button data-v="journal">Fin du journal</button></span>
+    <button class="fermer" id="t-fermer">Fermer</button>
+  </div>
+  <pre id="t-texte"></pre>
+</aside>
+
+<script>
+const ROLES = { production: 'Production', correction: 'Correction', revue: 'Revue', integration: 'Intégration', diagnostic: 'Diagnostic' };
+const ABR = { production: 'P', correction: 'C', revue: 'R', integration: 'I', diagnostic: 'D' };
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const duree = ms => { if (ms == null) return '—'; const m = Math.round(ms / 60000); if (m < 1) return 'à l\'instant'; if (m < 60) return m + ' min'; const h = Math.floor(m / 60); if (h < 48) return h + ' h ' + String(m % 60).padStart(2, '0'); return Math.floor(h / 24) + ' j ' + (h % 24) + ' h'; };
+const heure = t => new Date(t).toLocaleString('fr-FR', { weekday: 'short', hour: '2-digit', minute: '2-digit' });
+
+function issue(t) {
+  if (t.statut === 'actif') return ['actif', 'en cours'];
+  if (t.statut === 'silencieux') return ['silencieux', 'silencieux'];
+  if (t.statut === 'echec') return ['echec', 'échec'];
+  if (t.statut === 'interrompu') return ['interrompu', 'interrompu'];
+  const v = t.verdict || {};
+  if (v.qualifie === false) return ['acorriger', 'non qualifié'];
+  if (t.role === 'revue' || t.role === 'integration') {
+    if (v.p0 != null || v.p1 != null) return (v.p0 || 0) + (v.p1 || 0) === 0 ? ['approuve', 'P0=0 P1=0'] : ['acorriger', `P0=${v.p0 ?? '?'} P1=${v.p1 ?? '?'}`];
+    if (v.qualifie) return ['approuve', 'qualifié'];
+  }
+  return ['termine', v.sha ? 'livré ' + v.sha : 'terminé'];
+}
+
+let donnees = null, tiroirNom = null, tiroirVue = 'rapport';
+
+function rendre(s) {
+  donnees = s;
+  const now = s.genereA;
+  $('maj').textContent = 'mis à jour ' + new Date(now).toLocaleTimeString('fr-FR') + ' · actualisation toutes les 5 s';
+  const vivants = s.travaux.filter(t => t.statut === 'actif' || t.statut === 'silencieux');
+
+  // Alertes
+  const al = [];
+  const b = s.machine.batterie;
+  if (b && !b.secteur && vivants.length) al.push(`<div class="alerte">Machine sur batterie (${b.pourcent} %, ${b.restant || '?'} restantes) avec ${vivants.length} travail(aux) en cours : à la veille, ils se figent.</div>`);
+  for (const t of s.travaux.filter(t => t.statut === 'silencieux')) al.push(`<div class="alerte douce">${esc(t.nom)} n'écrit plus rien depuis ${duree(now - t.derniereEcriture)} : à vérifier.</div>`);
+  if (s.quota && s.quota.restant < 5) al.push(`<div class="alerte douce">Quota Codex sous 5 % (${s.quota.restant} %).</div>`);
+  $('alertes').innerHTML = al.join('');
+
+  // Jauges
+  const occupees = s.places.filter(p => p.vivant).length;
+  const jour = s.travaux.filter(t => t.fin && now - t.fin < 86400000);
+  const approuves = jour.filter(t => issue(t)[0] === 'approuve').length;
+  const charge = s.machine.charge[0];
+  $('jauges').innerHTML = [
+    ['Agents au travail', vivants.length, vivants.map(t => ROLES[t.role]).join(', ') || 'aucun'],
+    ['Places d\'essais', `${occupees} / ${s.placesMax}`, 'campagnes lourdes en cours', occupees / s.placesMax],
+    ['Terminés en 24 h', jour.length, `${approuves} revue(s) sans défaut bloquant`],
+    ['Charge machine', charge, `${s.machine.coeurs} cœurs · seuil d'essais 22`, Math.min(charge / 22, 1)],
+    ['Quota Codex', s.quota ? s.quota.restant + ' %' : '—', s.quota ? 'réinit. ' + s.quota.reinit : '', s.quota ? s.quota.restant / 100 : null],
+    ['Alimentation', b ? (b.secteur ? 'Secteur' : b.pourcent + ' %') : '—', b ? (b.secteur ? (b.pourcent != null ? `batterie ${b.pourcent} %` : '') : 'sur batterie') : ''],
+  ].map(([l, v, d, r]) => `<div class="jauge"><span>${l}</span><b>${esc(v)}</b><span>${esc(d)}</span>${r != null ? `<div class="barre"><i style="width:${Math.round(r * 100)}%;${r > .85 ? 'background:var(--attente)' : ''}"></i></div>` : ''}</div>`).join('');
+
+  // Bureaux
+  $('bureaux').innerHTML = vivants.length ? vivants.map(t => {
+    const [c, l] = issue(t);
+    return `<div class="bureau" style="--role:var(--r-${t.role})" data-nom="${esc(t.nom)}">
+      <div class="haut"><span class="role">${ROLES[t.role]}${t.tour ? ' · tour ' + t.tour : ''}</span><span class="pastille p-${c}"><span class="point"></span>${l}</span></div>
+      <div class="nom">${esc(t.tache || t.titre || t.nom)}</div>
+      <div class="meta" style="margin:2px 0">${esc(t.agent === 'claude' ? 'Claude · ' + (t.titre || '') : t.nom)}</div>
+      <div class="meta">Lot ${esc(t.lot)} · depuis ${duree(now - t.debut)} · dernière activité ${duree(now - t.derniereEcriture)} · ${esc(t.modele || '')}${t.repli ? ' (repli)' : ''}</div>
+      ${t.message ? `<div class="pensee">${esc(t.message)}</div>` : '<div class="pensee" style="color:var(--doux)">Pas encore de message de l\'agent.</div>'}
+      ${t.commande ? `<div class="cmd" title="${esc(t.commande.commande)}">▸ ${esc(t.commande.commande)}${t.commande.lieu ? ' — ' + esc(t.commande.lieu) : ''}</div>` : ''}
+    </div>`;
+  }).join('') : '<div class="vide">Aucun agent ne travaille en ce moment.</div>';
+
+  // Parcours des lots
+  const lots = new Map();
+  for (const t of [...s.travaux].sort((a, b) => (a.debut || 0) - (b.debut || 0))) {
+    if (!lots.has(t.lot)) lots.set(t.lot, []);
+    lots.get(t.lot).push(t);
+  }
+  const ordre = [...lots.entries()].sort((a, b) => Math.max(...b[1].map(t => t.derniereEcriture || 0)) - Math.max(...a[1].map(t => t.derniereEcriture || 0)));
+  $('lots').innerHTML = ordre.map(([lot, ts]) => {
+    const der = ts[ts.length - 1]; const [c, l] = issue(der);
+    const revues = ts.filter(t => t.role === 'revue').length;
+    return `<div class="lot"><div class="titre">${esc(lot)}</div>
+      <div class="chaine">${ts.map((t, i) => { const [ci, li] = issue(t); return `${i ? '<span class="fleche">›</span>' : ''}<span class="etape p-${ci}" data-nom="${esc(t.nom)}" title="${esc(t.nom)} — ${esc(li)}">${ABR[t.role]}${t.tour ?? ''}${t.role === 'revue' && t.verdict && t.verdict.p1 != null ? ' · ' + (t.verdict.p0 || 0) + '/' + t.verdict.p1 : ''}</span>`; }).join('')}</div>
+      <div class="meta" style="margin:0;text-align:right">${revues} revue(s) · ${duree(now - der.derniereEcriture)}<br><span class="pastille p-${c}">${l}</span></div></div>`;
+  }).join('') || '<div class="vide">Aucun travail trouvé.</div>';
+
+  // Chronologie 48 h
+  const W = 1000, limite = now - 48 * 3600000;
+  const vis = s.travaux.filter(t => t.debut && (t.fin || now) > limite).sort((a, b) => a.debut - b.debut);
+  // Fenêtre ajustée au premier travail visible (au plus 48 h, au moins 2 h), arrondie à l'heure.
+  const deb = Math.floor(Math.max(limite, Math.min(now - 2 * 3600000, ...vis.map(t => t.debut))) / 3600000) * 3600000;
+  const heures = Math.ceil((now - deb) / 3600000), pas = heures > 24 ? 6 : heures > 12 ? 3 : heures > 6 ? 2 : 1;
+  const ech = x => (Math.max(x, deb) - deb) / (now - deb) * (W - 160) + 150;
+  const H = 22 + vis.length * 18;
+  let svg = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Chronologie des travaux">`;
+  for (let h = 0; h <= heures; h += pas) { const x = ech(deb + h * 3600000); svg += `<line x1="${x}" x2="${x}" y1="14" y2="${H}" stroke="var(--trait)"/><text x="${x}" y="10" text-anchor="middle">${new Date(deb + h * 3600000).toLocaleTimeString('fr-FR', { hour: '2-digit' })}</text>`; }
+  vis.forEach((t, i) => {
+    const y = 20 + i * 18, x1 = ech(t.debut), x2 = Math.max(ech(t.fin || now), x1 + 3);
+    const [c] = issue(t);
+    svg += `<g class="etape-g" data-nom="${esc(t.nom)}" style="cursor:pointer"><text x="145" y="${y + 10}" text-anchor="end">${esc(t.nom.length > 26 ? t.nom.slice(0, 25) + '…' : t.nom)}</text>
+      <rect x="${x1}" y="${y + 1}" width="${x2 - x1}" height="12" rx="3" fill="var(--r-${t.role})" opacity="${c === 'actif' ? 1 : .55}"><title>${esc(t.nom)} · ${heure(t.debut)} → ${t.fin ? heure(t.fin) : 'en cours'} (${duree((t.fin || now) - t.debut)})</title></rect></g>`;
+  });
+  svg += '</svg>';
+  $('chrono').innerHTML = vis.length ? svg + `<div class="legende">${Object.keys(ROLES).map(r => `<span><i style="background:var(--r-${r})"></i>${ROLES[r]}</span>`).join('')}</div>` : '<div class="vide">Rien sur les dernières 48 heures.</div>';
+
+  if (tiroirNom && tiroirVue === 'journal') chargerTiroir();
+}
+
+async function chargerTiroir() {
+  const r = await fetch(`/api/${tiroirVue}?nom=${encodeURIComponent(tiroirNom)}`);
+  const pre = $('t-texte'), enBas = pre.scrollTop + pre.clientHeight >= pre.scrollHeight - 20;
+  pre.textContent = await r.text();
+  if (tiroirVue === 'journal' && enBas) pre.scrollTop = pre.scrollHeight;
+}
+function ouvrir(nom) {
+  tiroirNom = nom; $('t-nom').textContent = nom; $('tiroir').classList.add('ouvert');
+  const t = donnees.travaux.find(x => x.nom === nom);
+  tiroirVue = t && !t.aRapport ? 'journal' : 'rapport';
+  document.querySelectorAll('.onglets button').forEach(b => b.classList.toggle('choisi', b.dataset.v === tiroirVue));
+  chargerTiroir().then(() => { if (tiroirVue === 'journal') $('t-texte').scrollTop = 1e9; else $('t-texte').scrollTop = 0; });
+}
+document.addEventListener('click', e => {
+  const n = e.target.closest('[data-nom]');
+  if (n) return ouvrir(n.dataset.nom);
+  const o = e.target.closest('.onglets button');
+  if (o) { tiroirVue = o.dataset.v; document.querySelectorAll('.onglets button').forEach(b => b.classList.toggle('choisi', b === o)); chargerTiroir().then(() => { $('t-texte').scrollTop = tiroirVue === 'journal' ? 1e9 : 0; }); }
+});
+$('t-fermer').onclick = () => { $('tiroir').classList.remove('ouvert'); tiroirNom = null; };
+document.addEventListener('keydown', e => { if (e.key === 'Escape') $('t-fermer').click(); });
+
+async function boucle() {
+  try { rendre(await (await fetch('/api/etat', { cache: 'no-store' })).json()); }
+  catch { $('maj').textContent = 'serveur injoignable — nouvel essai…'; }
+  setTimeout(boucle, 5000);
+}
+boucle();
+</script>
+</body>
+</html>

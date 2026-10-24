@@ -1,0 +1,16 @@
+{
+  "name": "bureau-agents-3d",
+  "version": "1.0.0",
+  "description": "Bureau 3D en direct des agents Codex et Claude : qui travaille, sur quelle tâche, avec quel verdict.",
+  "type": "module",
+  "private": true,
+  "license": "MIT",
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "start": "node serveur.mjs",
+    "check": "node --check serveur.mjs"
+  },
+  "dependencies": {
+    "three": "0.160.0"
+  }
+}

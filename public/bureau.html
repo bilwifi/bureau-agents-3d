@@ -1,0 +1,507 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bureau des agents</title>
+<style>
+:root { --fond: #14131a; --carte: #1e1d26; --trait: #34323f; --texte: #ecebf2; --doux: #9d9aab; --vert: #5cc48d; --orange: #e5a23d; --rouge: #f07a70; --bleu: #7aa6ee; }
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--fond); color: var(--texte); font: 13px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+main { max-width: 1400px; margin: 0 auto; padding: 14px 16px 30px; }
+header { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }
+h1 { font: 700 18px ui-monospace, Menlo, monospace; margin: 0 8px 0 0; letter-spacing: .02em; }
+.puce { background: var(--carte); border: 1px solid var(--trait); border-radius: 20px; padding: 4px 11px; font-size: 12px; white-space: nowrap; }
+.puce b { font-variant-numeric: tabular-nums; }
+.puce.alerte { border-color: var(--rouge); color: var(--rouge); animation: clign 1.4s infinite; }
+@keyframes clign { 50% { opacity: .55; } }
+header a { margin-left: auto; color: var(--bleu); text-decoration: none; }
+.scene { position: relative; border-radius: 10px; overflow: hidden; border: 1px solid var(--trait); background: #0d0c12; }
+canvas { display: block; width: 100%; image-rendering: pixelated; cursor: default; }
+#info { position: absolute; pointer-events: none; background: rgba(20,19,26,.94); border: 1px solid var(--trait); border-radius: 8px; padding: 8px 10px; max-width: 360px; font-size: 12px; display: none; white-space: pre-wrap; overflow-wrap: anywhere; }
+#info b { display: block; font-size: 13px; margin-bottom: 2px; }
+.bas { display: grid; grid-template-columns: 1fr auto; gap: 12px; margin-top: 10px; align-items: start; }
+#fil { background: var(--carte); border: 1px solid var(--trait); border-radius: 10px; padding: 8px 12px; font: 12px ui-monospace, Menlo, monospace; max-height: 140px; overflow: auto; }
+#fil div { padding: 2px 0; color: var(--doux); }
+#fil div b { color: var(--texte); font-weight: 600; }
+.touches { color: var(--doux); font-size: 12px; text-align: right; }
+.touches kbd { background: var(--carte); border: 1px solid var(--trait); border-radius: 4px; padding: 0 5px; font-size: 11px; }
+.tiroir { position: fixed; inset: 0 0 0 auto; width: min(760px, 100%); background: var(--carte); border-left: 1px solid var(--trait); box-shadow: -8px 0 30px rgba(0,0,0,.4); transform: translateX(100%); transition: transform .2s; display: flex; flex-direction: column; z-index: 10; }
+.tiroir.ouvert { transform: none; }
+.tiroir .entete { display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; border-bottom: 1px solid var(--trait); gap: 8px; flex-wrap: wrap; }
+.tiroir button { background: var(--fond); color: var(--texte); border: 1px solid var(--trait); border-radius: 6px; padding: 4px 10px; cursor: pointer; font: inherit; font-size: 12px; }
+.tiroir button.choisi { background: var(--texte); color: var(--fond); }
+.tiroir pre { margin: 0; padding: 16px; overflow: auto; flex: 1; white-space: pre-wrap; overflow-wrap: anywhere; font: 12px/1.5 ui-monospace, Menlo, monospace; }
+@media (max-width: 640px) { .bas { grid-template-columns: 1fr; } .touches { text-align: left; } }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>BUREAU DES AGENTS</h1>
+    <span class="puce" id="p-agents">…</span>
+    <span class="puce" id="p-places">…</span>
+    <span class="puce" id="p-quota">…</span>
+    <span class="puce" id="p-alim">…</span>
+    <a href="/">Bureau 3D</a> · <a href="/tableau" style="margin-left:0">Tableau détaillé →</a>
+  </header>
+  <div class="scene" id="scene">
+    <canvas id="c"></canvas>
+    <div id="info"></div>
+  </div>
+  <div class="bas">
+    <div id="fil"><div>En attente des premières nouvelles…</div></div>
+    <div class="touches">Clic sur un robot : son rapport<br><kbd>N</kbd> jour / nuit · <kbd>Échap</kbd> fermer</div>
+  </div>
+</main>
+
+<aside class="tiroir" id="tiroir">
+  <div class="entete">
+    <strong id="t-nom"></strong>
+    <span class="onglets"><button data-v="rapport" class="choisi">Rapport final</button> <button data-v="journal">Fin du journal</button></span>
+    <button id="t-fermer">Fermer</button>
+  </div>
+  <pre id="t-texte"></pre>
+</aside>
+
+<script>
+// ---------- Monde (pixels logiques, mis à l'échelle sans lissage) ----------
+const LW = 384, LH = 224, COULOIR = 152, PORTE = { x: 192, y: 232 };
+const ROLE_COUL = { production: '#4f7fd6', correction: '#8a6ad8', revue: '#d8922e', integration: '#3fae73', diagnostic: '#8c8a97' };
+const ROLE_NOM = { production: 'Production', correction: 'Correction', revue: 'Revue', integration: 'Intégration', diagnostic: 'Diagnostic' };
+
+const BUREAUX = [];
+for (let r = 0; r < 2; r++) for (let c = 0; c < 3; c++) {
+  const x = 16 + c * 44, y = 66 + r * 42;
+  BUREAUX.push({ x, y, place: { x: x + 10, y: y + 1, couloirX: x + 37, zone: 'atelier' } });
+}
+const TABLE = { x: 176, y: 86, w: 66, h: 14 };
+const PLACES_REVUE = [188, 209, 230].map(x => ({ x, y: 85, couloirX: 168, zone: 'revue' }))
+  .concat([188, 209, 230].map(x => ({ x, y: 112, couloirX: x, zone: 'revue', dos: true })));
+const BANCS = [];
+for (let r = 0; r < 2; r++) for (let c = 0; c < 3; c++) BANCS.push({ x: 274 + c * 28, y: 70 + r * 40 });
+const PLACES_LABO = [{ x: 266, y: 69, couloirX: 262, zone: 'labo' }, { x: 266, y: 109, couloirX: 262, zone: 'labo' }];
+const ATTENTE = [0, 1, 2, 3].map(i => ({ x: 128 + i * 10, y: 198, couloirX: 128 + i * 10, zone: 'attente' }));
+const IMPRIMANTE = { x: 302, y: 168 }, POSTE_IMPRIMANTE = { x: 296, y: 186, couloirX: 296 };
+const ACCUEIL = { x: 44, y: 178 };
+const PLACES = { atelier: BUREAUX.map(b => b.place), revue: PLACES_REVUE, labo: PLACES_LABO, attente: ATTENTE };
+const zoneDe = role => role === 'revue' ? 'revue' : role === 'integration' ? 'labo' : 'atelier';
+
+// ---------- Canvas ----------
+const cv = document.getElementById('c'), ctx = cv.getContext('2d');
+const bas = document.createElement('canvas'); bas.width = LW; bas.height = LH;
+const b = bas.getContext('2d');
+let S = 3;
+function taille() {
+  const w = document.getElementById('scene').clientWidth;
+  S = w / LW;
+  const dpr = window.devicePixelRatio || 1;
+  cv.width = Math.round(w * dpr); cv.height = Math.round(LH * S * dpr);
+  cv.style.height = (LH * S) + 'px';
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+}
+addEventListener('resize', taille);
+
+const R = (x, y, w, h, c) => { b.fillStyle = c; b.fillRect(Math.round(x), Math.round(y), w, h); };
+
+// ---------- État ----------
+let donnees = null, premier = true, nuitForcee = null, t0 = performance.now();
+const robots = new Map();
+const occupees = new Set();
+const fil = [];
+
+function prendrePlace(zone) {
+  for (const z of [zone, 'atelier', 'attente']) for (const p of PLACES[z]) if (!occupees.has(p)) { occupees.add(p); return p; }
+  return ATTENTE[0];
+}
+function chemin(rb, cible) {
+  const pts = [];
+  if (rb.place && rb.y < COULOIR - 1) { pts.push({ x: rb.place.couloirX, y: rb.y }); pts.push({ x: rb.place.couloirX, y: COULOIR }); }
+  else if (rb.y > COULOIR + 1) pts.push({ x: rb.x, y: COULOIR });
+  if (cible.y > COULOIR + 1) { pts.push({ x: cible.couloirX, y: COULOIR }); pts.push({ x: cible.x, y: cible.y }); }
+  else { pts.push({ x: cible.couloirX, y: COULOIR }); pts.push({ x: cible.couloirX, y: cible.y }); pts.push({ x: cible.x, y: cible.y }); }
+  return pts;
+}
+function noter(html) {
+  fil.unshift(`<span>${new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</span> ${html}`);
+  fil.length = Math.min(fil.length, 40);
+  document.getElementById('fil').innerHTML = fil.map(l => `<div>${l}</div>`).join('');
+}
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const duree = ms => { const m = Math.round(ms / 60000); if (m < 60) return m + ' min'; return Math.floor(m / 60) + ' h ' + String(m % 60).padStart(2, '0'); };
+
+function verdictCourt(t) {
+  const v = t.verdict || {};
+  if (t.statut === 'echec') return { txt: 'échec', c: '#f07a70' };
+  if (t.statut === 'interrompu') return { txt: 'interrompu', c: '#f07a70' };
+  if (v.qualifie === false) return { txt: 'non qualifié', c: '#e5a23d' };
+  if (v.p0 != null || v.p1 != null) { const ok = (v.p0 || 0) + (v.p1 || 0) === 0; return { txt: `P0=${v.p0 ?? '?'} P1=${v.p1 ?? '?'}`, c: ok ? '#5cc48d' : '#e5a23d' }; }
+  if (v.qualifie) return { txt: 'qualifié', c: '#5cc48d' };
+  return { txt: v.sha ? 'livré ' + v.sha : 'terminé', c: '#7aa6ee' };
+}
+function activite(t) {
+  if (t.statut === 'silencieux') return ['💤', 'silencieux'];
+  const c = t.commande?.commande || '';
+  if (t.derniereMarque === 'codex') return ['💬', 'explique'];
+  if (t.derniereMarque === 'apply patch') return ['✏️', 'modifie le code'];
+  if (t.derniereMarque === 'tokens used') return ['📄', 'rédige le rapport'];
+  if (/git (push|commit)/.test(c)) return ['⬆️', /push/.test(c) ? 'pousse' : 'commit'];
+  if (/campaign-lock/.test(c)) return ['🧪', 'campagne d\'essais'];
+  if (/\btest|vitest|jest|mutation|verify|playwright|test:browser/.test(c)) return ['🧪', 'essais'];
+  if (/docker|kubectl|colima|psql|pg_/.test(c)) return ['🐳', 'conteneurs'];
+  if (/\bgit (diff|log|show|fetch|merge|rebase|worktree)/.test(c)) return ['🌿', 'git'];
+  if (/^\s*(rg|grep|sed -n|cat|nl|head|tail|ls|find|wc|jq)\b/.test(c)) return ['🔎', 'lit le code'];
+  if (/node|python3|npm/.test(c)) return ['⚙️', 'script'];
+  return ['⚙️', 'commande'];
+}
+
+function appliquer(s) {
+  donnees = s;
+  const now = s.genereA;
+  const vivants = s.travaux.filter(t => t.statut === 'actif' || t.statut === 'silencieux');
+  const noms = new Set(vivants.map(t => t.nom));
+  for (const t of vivants) {
+    let rb = robots.get(t.nom);
+    if (!rb) {
+      const place = prendrePlace(zoneDe(t.role));
+      rb = { nom: t.nom, place, x: PORTE.x, y: PORTE.y, chemin: [], mode: 'entre', job: t, graine: Math.random() * 10, alpha: 1 };
+      if (premier) { rb.x = place.x; rb.y = place.y; rb.mode = 'assis'; }
+      else { rb.chemin = [{ x: PORTE.x, y: COULOIR }, ...chemin({ ...rb, y: COULOIR, place: null }, place)]; noter(`<b>${esc(t.nom)}</b> arrive (${ROLE_NOM[t.role].toLowerCase()}, lot ${esc(t.lot)})`); }
+      robots.set(t.nom, rb);
+    } else if (rb.job.statut !== t.statut && t.statut === 'silencieux') noter(`<b>${esc(t.nom)}</b> n'écrit plus rien depuis ${duree(now - t.derniereEcriture)}`);
+    rb.job = t;
+  }
+  for (const rb of robots.values()) {
+    if (noms.has(rb.nom) || rb.mode === 'imprime' || rb.mode === 'sort' || rb.mode === 'vers-imprimante') continue;
+    const fin = s.travaux.find(t => t.nom === rb.nom);
+    if (fin) rb.job = fin;
+    rb.verdict = verdictCourt(rb.job);
+    rb.chemin = chemin(rb, POSTE_IMPRIMANTE);
+    occupees.delete(rb.place);
+    rb.mode = 'vers-imprimante';
+    noter(`<b>${esc(rb.nom)}</b> a terminé : <span style="color:${rb.verdict.c}">${esc(rb.verdict.txt)}</span>`);
+  }
+  if (premier) {
+    const recents = s.travaux.filter(t => t.fin && now - t.fin < 6 * 3600000).slice(0, 6).reverse();
+    for (const t of recents) { const v = verdictCourt(t); fil.unshift(`<span>${new Date(t.fin).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</span> <b>${esc(t.nom)}</b> terminé : <span style="color:${v.c}">${esc(v.txt)}</span>`); }
+    document.getElementById('fil').innerHTML = fil.map(l => `<div>${l}</div>`).join('') || '<div>Rien de récent.</div>';
+  }
+  premier = false;
+
+  const occ = s.places.filter(p => p.vivant).length, bt = s.machine.batterie;
+  document.getElementById('p-agents').innerHTML = `<b>${vivants.length}</b> agent(s) au travail`;
+  document.getElementById('p-places').innerHTML = `Places d'essais <b>${occ}/${s.placesMax}</b> · charge <b>${s.machine.charge[0]}</b>`;
+  document.getElementById('p-quota').innerHTML = s.quota ? `Quota Codex <b>${s.quota.restant} %</b>` : 'Quota —';
+  const pa = document.getElementById('p-alim');
+  pa.innerHTML = bt ? (bt.secteur ? 'Secteur ⚡' : `Sur batterie <b>${bt.pourcent} %</b> (${bt.restant || '?'})`) : '—';
+  pa.classList.toggle('alerte', !!(bt && !bt.secteur && vivants.length));
+}
+
+// ---------- Dessin du décor ----------
+function estNuit() { if (nuitForcee != null) return nuitForcee; const h = new Date().getHours(); return h >= 20 || h < 7; }
+function ciel() {
+  const h = new Date().getHours() + new Date().getMinutes() / 60;
+  if (nuitForcee === true || (nuitForcee == null && (h >= 20 || h < 6))) return ['#0e1430', '#1b2350'];
+  if (nuitForcee == null && (h < 8 || h >= 18)) return ['#e98b5a', '#f5c27a'];
+  return ['#6fb6ee', '#a9dbf7'];
+}
+function decor(t) {
+  // sol
+  for (let y = 40; y < LH; y += 8) for (let x = -16; x < LW; x += 16) R(x + ((y / 8) % 2) * 8, y, 16, 8, ((x / 16 + y / 8) % 2) ? '#6b4f3a' : '#735540');
+  for (let y = 40; y < LH; y += 8) R(0, y, LW, 1, '#5c4232');
+  // tapis des zones
+  R(8, 54, 146, 92, '#3d4a63'); R(9, 55, 144, 90, '#46557a');
+  R(160, 54, 98, 92, '#5a4058'); R(161, 55, 96, 90, '#684a66');
+  R(262, 54, 116, 92, '#2f5248'); R(263, 55, 114, 90, '#365e52');
+  // couloir
+  R(0, COULOIR - 6, LW, 14, '#7d6049');
+  // mur
+  R(0, 0, LW, 40, '#d9d2c3'); R(0, 34, LW, 6, '#b9ae99'); R(0, 40, LW, 2, '#4a3628');
+  // fenêtres
+  const [c1, c2] = ciel();
+  for (const wx of [14, 66, 118]) {
+    R(wx, 6, 40, 22, '#6d5a45'); R(wx + 2, 8, 36, 18, c1); R(wx + 2, 8, 36, 7, c2);
+    if (estNuit()) { for (let i = 0; i < 4; i++) R(wx + 5 + ((i * 11 + wx) % 30), 10 + (i * 5) % 12, 1, 1, '#fff7c2'); }
+    else { R(wx + 6 + (Math.floor(t / 900) + wx) % 26, 12, 7, 2, '#ffffff'); }
+    R(wx + 19, 8, 2, 18, '#6d5a45'); R(wx + 2, 16, 36, 1, '#6d5a45');
+  }
+  // horloge
+  const d = new Date(); const cx = 182, cy = 17;
+  b.fillStyle = '#4a3628'; b.beginPath(); b.arc(cx, cy, 10, 0, 7); b.fill();
+  b.fillStyle = '#f4efe4'; b.beginPath(); b.arc(cx, cy, 8.5, 0, 7); b.fill();
+  b.strokeStyle = '#2b2118'; b.lineWidth = 1.2;
+  const ah = ((d.getHours() % 12) + d.getMinutes() / 60) / 12 * 6.283 - 1.571, am = d.getMinutes() / 60 * 6.283 - 1.571;
+  b.beginPath(); b.moveTo(cx, cy); b.lineTo(cx + Math.cos(ah) * 4.5, cy + Math.sin(ah) * 4.5); b.stroke();
+  b.lineWidth = .8; b.beginPath(); b.moveTo(cx, cy); b.lineTo(cx + Math.cos(am) * 7, cy + Math.sin(am) * 7); b.stroke();
+  // tableau blanc : parcours des lots
+  R(202, 5, 106, 27, '#8c7a62'); R(204, 7, 102, 23, '#f7f6f1');
+  if (donnees) {
+    const lots = new Map();
+    for (const j of [...donnees.travaux].sort((a, z) => (a.debut || 0) - (z.debut || 0))) { if (!lots.has(j.lot)) lots.set(j.lot, []); lots.get(j.lot).push(j); }
+    const ordre = [...lots.values()].sort((a, z) => Math.max(...z.map(j => j.derniereEcriture || 0)) - Math.max(...a.map(j => j.derniereEcriture || 0))).slice(0, 5);
+    ordre.forEach((ts, i) => {
+      R(207, 10 + i * 4, 10, 2, '#9b968a');
+      ts.slice(-20).forEach((j, k) => R(220 + k * 4, 9 + i * 4, 3, 3, couleurEtape(j, t)));
+    });
+  }
+  // panneau d'alimentation
+  const bt = donnees?.machine.batterie;
+  R(318, 8, 22, 18, '#3b3a44'); R(319, 9, 20, 16, '#24232b');
+  if (bt) {
+    if (bt.secteur) { R(326, 12, 2, 4, '#5cc48d'); R(330, 12, 2, 4, '#5cc48d'); R(325, 16, 8, 3, '#5cc48d'); R(328, 19, 2, 3, '#5cc48d'); }
+    else {
+      const clig = Math.floor(t / 500) % 2;
+      R(322, 13, 13, 8, '#d9d2c3'); R(335, 15, 2, 4, '#d9d2c3'); R(323, 14, 11, 6, '#24232b');
+      R(323, 14, Math.max(1, Math.round(11 * bt.pourcent / 100)), 6, bt.pourcent < 30 ? (clig ? '#f07a70' : '#24232b') : '#e5a23d');
+    }
+  }
+  // étagère / plantes
+  R(352, 10, 24, 22, '#6d5a45'); for (let i = 0; i < 6; i++) R(354 + i * 4, 12, 3, 8, ['#c0504d', '#4f81bd', '#9bbb59', '#e5a23d', '#8064a2', '#4bacc6'][i]); R(352, 20, 24, 2, '#4a3628'); for (let i = 0; i < 5; i++) R(355 + i * 4, 23, 3, 7, ['#4f81bd', '#e5a23d', '#c0504d', '#9bbb59', '#8064a2'][i]);
+  plante(150, 50); plante(372, 146); plante(6, 146);
+  // porte
+  R(180, LH - 6, 24, 6, '#4a3628'); R(182, LH - 5, 20, 5, '#2b2118');
+  // étiquettes de zone
+  etiquette('ATELIER', 12, 137); etiquette('SALLE DE REVUE', 164, 137); etiquette('INTÉGRATION · PLACES D\'ESSAIS', 266, 137);
+}
+function etiquette(txt, x, y) { b.font = '5px monospace'; b.fillStyle = 'rgba(255,255,255,.55)'; b.fillText(txt, x, y + 5); }
+function plante(x, y) { R(x - 3, y, 7, 6, '#9a5b3a'); R(x - 4, y - 5, 9, 5, '#3f8a4a'); R(x - 2, y - 8, 5, 4, '#4fa35a'); }
+function couleurEtape(j, t) {
+  if (j.statut === 'actif') return Math.floor(t / 400) % 2 ? '#5cc48d' : '#2e6a4a';
+  if (j.statut === 'silencieux') return '#e5a23d';
+  return verdictCourt(j).c;
+}
+
+// ---------- Objets triés par profondeur ----------
+function bureauObj(bu, t) {
+  return { y: bu.y + 10, dessiner() {
+    const occ = [...robots.values()].find(r => r.place === bu.place && r.mode === 'assis');
+    R(bu.x, bu.y, 30, 6, '#a77b52'); R(bu.x, bu.y + 6, 30, 8, '#8a6242'); R(bu.x + 1, bu.y + 14, 2, 2, '#5c4232'); R(bu.x + 27, bu.y + 14, 2, 2, '#5c4232');
+    // écran vu de dos + clavier
+    R(bu.x + 17, bu.y - 7, 11, 8, '#2d2c35'); R(bu.x + 21, bu.y + 1, 2, 2, '#2d2c35');
+    if (occ) R(bu.x + 16, bu.y - 8, 13, 1, occ.job.statut === 'silencieux' ? '#e5a23d' : '#8fd3ff');
+    R(bu.x + 2, bu.y + 1, 3, 3, '#e8e2d4'); // tasse
+  } };
+}
+function tableObj() {
+  return { y: TABLE.y + 12, dessiner() {
+    R(TABLE.x, TABLE.y, TABLE.w, 10, '#c49a6c'); R(TABLE.x, TABLE.y + 10, TABLE.w, 5, '#9c7350');
+    R(TABLE.x + 8, TABLE.y + 2, 8, 6, '#f4efe4'); R(TABLE.x + 30, TABLE.y + 3, 9, 5, '#f4efe4'); R(TABLE.x + 50, TABLE.y + 2, 7, 6, '#f4efe4');
+  } };
+}
+function bancObj(bn, i, t) {
+  return { y: bn.y + 10, dessiner() {
+    const p = donnees?.places[i]; const allume = p && p.vivant;
+    R(bn.x, bn.y, 22, 6, '#6f7480'); R(bn.x, bn.y + 6, 22, 6, '#555a64');
+    R(bn.x + 3, bn.y - 8, 16, 9, '#2b2e36');
+    for (let k = 0; k < 4; k++) R(bn.x + 5 + k * 3, bn.y - 6, 2, 2, allume ? ((Math.floor(t / 180) + k + i) % 3 ? '#5cc48d' : '#1b3a2a') : '#3a3e48');
+    R(bn.x + 5, bn.y - 2, 12, 1, allume ? '#8fd3ff' : '#3a3e48');
+  } };
+}
+function baieObj(t) {
+  return { y: 98, dessiner() {
+    const charge = donnees?.machine.charge[0] || 0, n = Math.min(10, Math.round(charge / 2.2));
+    R(360, 46, 16, 52, '#24262d'); R(361, 47, 14, 50, '#1a1b20');
+    for (let k = 0; k < 10; k++) { R(363, 49 + k * 5, 10, 3, '#2b2e36'); R(364, 50 + k * 5, 2, 1, k < n ? ((Math.floor(t / (120 + k * 37)) % 2) ? (charge > 20 ? '#f07a70' : '#5cc48d') : '#1a1b20') : '#3a3e48'); }
+  } };
+}
+function imprimanteObj(t) {
+  return { y: IMPRIMANTE.y + 12, dessiner() {
+    R(IMPRIMANTE.x - 4, IMPRIMANTE.y + 6, 20, 8, '#8a6242');
+    R(IMPRIMANTE.x - 2, IMPRIMANTE.y - 2, 16, 9, '#d6d3cc'); R(IMPRIMANTE.x - 2, IMPRIMANTE.y + 4, 16, 2, '#a9a59c');
+    const imp = [...robots.values()].some(r => r.mode === 'imprime');
+    R(IMPRIMANTE.x + 2, IMPRIMANTE.y - 5 - (imp ? Math.floor(t / 150) % 4 : 0), 8, 4, '#ffffff');
+    R(IMPRIMANTE.x + 11, IMPRIMANTE.y, 2, 1, imp ? '#5cc48d' : '#7a766d');
+  } };
+}
+function accueilObj(t) {
+  return { y: ACCUEIL.y + 12, dessiner() {
+    R(ACCUEIL.x - 18, ACCUEIL.y, 46, 7, '#a77b52'); R(ACCUEIL.x - 18, ACCUEIL.y + 7, 46, 6, '#8a6242');
+    R(ACCUEIL.x + 14, ACCUEIL.y - 7, 10, 7, '#2d2c35'); R(ACCUEIL.x + 13, ACCUEIL.y - 8, 12, 1, '#8fd3ff');
+  } };
+}
+function canapeObj() { return { y: 206, dessiner() { R(120, 194, 44, 6, '#5a6fa3'); R(118, 198, 48, 8, '#4a5d8c'); R(118, 194, 4, 12, '#3d4d75'); R(162, 194, 4, 12, '#3d4d75'); } }; }
+
+// ---------- Robots ----------
+function dessinerRobot(x, y, coul, opts, t) {
+  const { dos, marche, tape, dort, alerte, alpha = 1, superviseur } = opts;
+  b.globalAlpha = alpha;
+  x = Math.round(x) - 5; y = Math.round(y);
+  const bob = marche ? (Math.floor(t / 120) % 2) : 0;
+  // ombre
+  b.fillStyle = 'rgba(0,0,0,.25)'; b.fillRect(x + 1, y - 1, 9, 2);
+  // jambes
+  const j = marche ? Math.floor(t / 120) % 2 : 0;
+  R(x + 2, y - 4 + (j ? 1 : 0), 2, 3, '#3a3a44'); R(x + 6, y - 4 + (j ? 0 : 1), 2, 3, '#3a3a44');
+  // corps
+  R(x + 1, y - 10 - bob, 8, 6, coul); R(x + 1, y - 5 - bob, 8, 1, 'rgba(0,0,0,.25)');
+  if (!dos) R(x + 4, y - 9 - bob, 2, 2, 'rgba(255,255,255,.55)');
+  // bras
+  const a = tape ? Math.floor(t / 110) % 2 : 0;
+  R(x, y - 9 - bob + a, 1, 4, coul); R(x + 9, y - 9 - bob + (tape ? 1 - a : 0), 1, 4, coul);
+  // tête
+  R(x + 1, y - 17 - bob, 8, 7, superviseur ? '#f4efe4' : '#cfd3dc'); R(x + 1, y - 11 - bob, 8, 1, '#a9aeb9');
+  if (!dos) {
+    R(x + 2, y - 16 - bob, 6, 4, '#1c1d24');
+    const oeil = alerte ? '#f07a70' : dort ? '#e5a23d' : '#7df0b0';
+    const cligne = !dort && (Math.floor((t + opts.graine * 1000) / 2600) % 7 === 0);
+    if (dort || cligne) { R(x + 3, y - 14 - bob, 2, 1, oeil); R(x + 6, y - 14 - bob, 2, 1, oeil); }
+    else { R(x + 3, y - 15 - bob, 1, 2, oeil); R(x + 6, y - 15 - bob, 1, 2, oeil); }
+  } else R(x + 2, y - 16 - bob, 6, 4, '#b4b9c4');
+  // antenne
+  R(x + 5, y - 19 - bob, 1, 2, '#8a8f9a');
+  R(x + 5, y - 20 - bob, 1, 1, alerte ? '#f07a70' : (Math.floor((t + opts.graine * 700) / 600) % 2 ? coul : '#ffffff'));
+  b.globalAlpha = 1;
+}
+
+function avancer(rb, dt) {
+  if (!rb.chemin.length) return false;
+  const p = rb.chemin[0], dx = p.x - rb.x, dy = p.y - rb.y, d = Math.hypot(dx, dy), v = 34 * dt;
+  rb.dirY = dy;
+  if (d <= v) { rb.x = p.x; rb.y = p.y; rb.chemin.shift(); }
+  else { rb.x += dx / d * v; rb.y += dy / d * v; }
+  return true;
+}
+function majRobots(dt, t) {
+  for (const rb of [...robots.values()]) {
+    const bouge = avancer(rb, dt);
+    if (!bouge) {
+      if (rb.mode === 'entre') rb.mode = 'assis';
+      else if (rb.mode === 'vers-imprimante') { rb.mode = 'imprime'; rb.attente = t + 3200; }
+      else if (rb.mode === 'imprime' && t > rb.attente) { rb.mode = 'sort'; rb.place = null; rb.chemin = [{ x: rb.x, y: COULOIR }, { x: PORTE.x, y: COULOIR }, { x: PORTE.x, y: PORTE.y }]; }
+      else if (rb.mode === 'sort') { rb.alpha -= dt * 2; if (rb.alpha <= 0) robots.delete(rb.nom); }
+    }
+    rb.marche = bouge;
+  }
+}
+
+// ---------- Bulles (espace écran, nettes) ----------
+function bulle(x, y, texte, coul, fond = 'rgba(250,248,242,.96)') {
+  ctx.font = `600 ${Math.max(10, Math.round(S * 3.4))}px -apple-system, "Segoe UI", sans-serif`;
+  const w = ctx.measureText(texte).width + 12, h = Math.max(16, S * 5.6);
+  const bx = Math.min(Math.max(4, x - w / 2), LW * S - w - 4), by = y - h - 6;
+  ctx.fillStyle = fond; ctx.strokeStyle = 'rgba(0,0,0,.35)'; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.roundRect(bx, by, w, h, 5); ctx.fill(); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(x - 4, by + h); ctx.lineTo(x, by + h + 5); ctx.lineTo(x + 4, by + h); ctx.fill();
+  ctx.fillStyle = coul; ctx.textBaseline = 'middle'; ctx.fillText(texte, bx + 6, by + h / 2 + .5);
+}
+
+// ---------- Boucle ----------
+let survol = null, dernier = performance.now();
+function image(now) {
+  const dt = Math.min(.1, (now - dernier) / 1000); dernier = now;
+  const t = now - t0;
+  majRobots(dt, t);
+  b.clearRect(0, 0, LW, LH);
+  decor(t);
+  const objets = [...BUREAUX.map(bu => bureauObj(bu, t)), tableObj(), ...BANCS.map((bn, i) => bancObj(bn, i, t)), baieObj(t), imprimanteObj(t), accueilObj(t), canapeObj()];
+  // superviseur (Claude) à l'accueil
+  objets.push({ y: ACCUEIL.y - 1, dessiner: () => dessinerRobot(ACCUEIL.x + 4, ACCUEIL.y + 1, '#2aa198', { tape: true, graine: 3, superviseur: true }, t) });
+  for (const rb of robots.values()) {
+    const j = rb.job;
+    objets.push({ y: rb.y, dessiner: () => dessinerRobot(rb.x, rb.y, ROLE_COUL[j.role] || '#888', {
+      dos: rb.marche ? rb.dirY < 0 : (rb.mode === 'assis' && rb.place?.dos), marche: rb.marche,
+      tape: rb.mode === 'assis' && j.statut === 'actif', dort: j.statut === 'silencieux',
+      alerte: rb.verdict && rb.verdict.c === '#f07a70', alpha: rb.alpha, graine: rb.graine }, t) });
+  }
+  objets.sort((a, z) => a.y - z.y).forEach(o => o.dessiner());
+  // nuit : voile + lumières
+  if (estNuit()) {
+    b.fillStyle = 'rgba(10,14,40,.42)'; b.fillRect(0, 0, LW, LH);
+    b.globalCompositeOperation = 'lighter';
+    const lampe = (x, y, r, a) => { const g = b.createRadialGradient(x, y, 0, x, y, r); g.addColorStop(0, `rgba(255,214,140,${a})`); g.addColorStop(1, 'rgba(255,214,140,0)'); b.fillStyle = g; b.fillRect(x - r, y - r, r * 2, r * 2); };
+    for (const rb of robots.values()) if (rb.mode === 'assis') lampe(rb.x, rb.y - 6, 22, .22);
+    lampe(ACCUEIL.x, ACCUEIL.y - 4, 20, .18);
+    donnees?.places.forEach((p, i) => { if (p.vivant && BANCS[i]) lampe(BANCS[i].x + 11, BANCS[i].y - 3, 16, .2); });
+    b.globalCompositeOperation = 'source-over';
+  }
+  // rendu à l'échelle
+  const W = LW * S, H = LH * S;
+  ctx.imageSmoothingEnabled = false;
+  ctx.clearRect(0, 0, W, H);
+  ctx.drawImage(bas, 0, 0, W, H);
+  // bulles
+  for (const rb of robots.values()) {
+    const sx = rb.x * S, sy = (rb.y - 21) * S;
+    if (rb.mode === 'imprime' || rb.mode === 'sort') bulle(sx, sy, '🖨️ ' + rb.verdict.txt, rb.verdict.c === '#7aa6ee' ? '#2557a7' : rb.verdict.c === '#5cc48d' ? '#1f7a4d' : rb.verdict.c === '#e5a23d' ? '#9a5a00' : '#b3261e');
+    else if (rb.mode === 'entre') bulle(sx, sy, '👋 ' + rb.nom, '#333');
+    else if (rb.mode === 'assis') { const [ic, lb] = activite(rb.job); bulle(sx, sy, `${ic} ${lb}`, rb.job.statut === 'silencieux' ? '#9a5a00' : '#222'); }
+  }
+  if (donnees) {
+    const n = [...robots.values()].filter(r => r.mode === 'assis').length;
+    bulle(ACCUEIL.x * S + 4 * S, (ACCUEIL.y - 20) * S, n ? `🧭 ${n} agent(s) suivi(s)` : '🧭 en veille', '#155e58');
+  }
+  // étiquette du robot survolé
+  if (survol && robots.has(survol)) {
+    const rb = robots.get(survol);
+    ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.strokeRect((rb.x - 7) * S, (rb.y - 22) * S, 14 * S, 23 * S);
+  }
+  if (!document.hidden) requestAnimationFrame(image);
+}
+document.addEventListener('visibilitychange', () => { if (!document.hidden) { dernier = performance.now(); requestAnimationFrame(image); } });
+
+// ---------- Interactions ----------
+function robotSous(e) {
+  const r = cv.getBoundingClientRect(), x = (e.clientX - r.left) / S, y = (e.clientY - r.top) / S;
+  let meilleur = null;
+  for (const rb of robots.values()) if (Math.abs(x - rb.x) < 8 && y > rb.y - 22 && y < rb.y + 2) meilleur = rb;
+  return { rb: meilleur, sup: Math.abs(x - ACCUEIL.x - 4) < 8 && y > ACCUEIL.y - 21 && y < ACCUEIL.y + 3 };
+}
+const info = document.getElementById('info');
+cv.addEventListener('mousemove', e => {
+  const { rb, sup } = robotSous(e);
+  survol = rb?.nom || null;
+  cv.style.cursor = rb ? 'pointer' : 'default';
+  if (!rb && !sup) { info.style.display = 'none'; return; }
+  const now = donnees.genereA;
+  if (rb) {
+    const j = rb.job;
+    info.innerHTML = `<b>${esc(j.tache || j.nom)}</b>${esc(j.nom)}\n${ROLE_NOM[j.role] || ''}${j.tour ? ' · tour ' + j.tour : ''} · lot ${esc(j.lot)}\n` +
+      (rb.mode === 'assis' || rb.mode === 'entre' ? `Au travail depuis ${duree(now - j.debut)} · dernière activité il y a ${duree(now - j.derniereEcriture)}\n` : `Terminé : ${esc(rb.verdict?.txt)}\n`) +
+      (j.message ? '\n« ' + esc(j.message.slice(0, 380)) + (j.message.length > 380 ? '…' : '') + ' »' : '') +
+      (j.commande ? `\n\n▸ ${esc(j.commande.commande.slice(0, 140))}` : '');
+  } else {
+    const d = donnees;
+    info.innerHTML = `<b>Superviseur (Claude)</b>Orchestre les agents Codex : lance, relit, intègre.\n${d.travaux.filter(t => t.fin && now - t.fin < 86400000).length} travaux terminés en 24 h · quota Codex ${d.quota?.restant ?? '?'} %`;
+  }
+  const sr = document.getElementById('scene').getBoundingClientRect();
+  info.style.display = 'block';
+  let lx = e.clientX - sr.left + 14, ly = e.clientY - sr.top + 14;
+  if (lx + 370 > sr.width) lx = e.clientX - sr.left - 374;
+  info.style.left = Math.max(4, lx) + 'px'; info.style.top = Math.min(ly, sr.height - info.offsetHeight - 4) + 'px';
+});
+cv.addEventListener('mouseleave', () => { info.style.display = 'none'; survol = null; });
+cv.addEventListener('click', e => { const { rb } = robotSous(e); if (rb) ouvrir(rb.nom); });
+addEventListener('keydown', e => {
+  if (e.key === 'n' || e.key === 'N') nuitForcee = nuitForcee == null ? !estNuit() : (nuitForcee === estNuitAuto() ? null : !nuitForcee);
+  if (e.key === 'Escape') fermer();
+});
+function estNuitAuto() { const h = new Date().getHours(); return h >= 20 || h < 7; }
+
+let tiroirNom = null, tiroirVue = 'rapport';
+async function chargerTiroir() {
+  const r = await fetch(`/api/${tiroirVue}?nom=${encodeURIComponent(tiroirNom)}`);
+  document.getElementById('t-texte').textContent = await r.text();
+  document.getElementById('t-texte').scrollTop = tiroirVue === 'journal' ? 1e9 : 0;
+}
+function ouvrir(nom) {
+  tiroirNom = nom; document.getElementById('t-nom').textContent = nom; document.getElementById('tiroir').classList.add('ouvert');
+  const j = donnees.travaux.find(x => x.nom === nom);
+  tiroirVue = j && !j.aRapport ? 'journal' : 'rapport';
+  document.querySelectorAll('.onglets button').forEach(x => x.classList.toggle('choisi', x.dataset.v === tiroirVue));
+  chargerTiroir();
+}
+function fermer() { document.getElementById('tiroir').classList.remove('ouvert'); tiroirNom = null; }
+document.getElementById('t-fermer').onclick = fermer;
+document.querySelector('.onglets').addEventListener('click', e => {
+  const o = e.target.closest('button'); if (!o) return;
+  tiroirVue = o.dataset.v; document.querySelectorAll('.onglets button').forEach(x => x.classList.toggle('choisi', x === o)); chargerTiroir();
+});
+
+async function boucle() {
+  try { appliquer(await (await fetch('/api/etat', { cache: 'no-store' })).json()); } catch {}
+  setTimeout(boucle, 4000);
+}
+taille(); boucle(); requestAnimationFrame(image);
+</script>
+</body>
+</html>
