@@ -32,7 +32,10 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #07080d; col
 @keyframes entre { from { opacity: 0; transform: translateY(6px); } }
 #legende { position: fixed; right: 16px; bottom: 16px; padding: 10px 14px; z-index: 5; font-size: 11px; color: var(--doux); display: grid; grid-template-columns: auto auto; gap: 4px 14px; }
 #legende i { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 6px; vertical-align: 0; box-shadow: 0 0 8px currentColor; }
-.bulle { font: 600 11px "Space Grotesk", sans-serif; color: #fff; padding: 4px 9px; border-radius: 10px; background: rgba(12,14,24,.78); border: 1px solid rgba(255,255,255,.18); backdrop-filter: blur(6px); transform: translateY(-6px); pointer-events: none; transition: opacity .3s; box-shadow: 0 4px 14px rgba(0,0,0,.3); max-width: 190px; }
+.ancre { width: 0; height: 0; pointer-events: none; }
+.tige { position: absolute; left: 0; bottom: 0; width: 1px; height: 0; background: linear-gradient(to top, rgba(255,255,255,.15), rgba(255,255,255,.7)); }
+.ancre::after { content: ''; position: absolute; left: -2px; bottom: -2px; width: 5px; height: 5px; border-radius: 50%; background: rgba(255,255,255,.55); opacity: var(--point, 0); }
+.bulle { position: absolute; left: 0; bottom: 6px; width: max-content; font: 600 11px "Space Grotesk", sans-serif; color: #fff; padding: 4px 9px; border-radius: 10px; background: rgba(12,14,24,.82); border: 1px solid rgba(255,255,255,.18); backdrop-filter: blur(6px); pointer-events: none; transition: opacity .3s; box-shadow: 0 4px 14px rgba(0,0,0,.3); max-width: 190px; will-change: transform; }
 .bulle .b-tache { font-weight: 500; font-size: 10px; line-height: 1.3; color: rgba(255,255,255,.88); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; margin-bottom: 3px; }
 .bulle .b-act { white-space: nowrap; font-size: 11px; }
 .bulle .b-act small { color: var(--doux); font-weight: 500; }
@@ -341,11 +344,14 @@ class Robot {
     this.g.traverse(o => { if (o.isMesh) { o.castShadow = true; o.userData.robot = this; } });
     this.halo = new THREE.Mesh(new THREE.RingGeometry(0.42, 0.5, 40), new THREE.MeshBasicMaterial({ color: roleC, transparent: true, opacity: 0.0, blending: THREE.AdditiveBlending, depthWrite: false }));
     this.halo.rotation.x = -Math.PI / 2; this.halo.position.y = 0.02; this.g.add(this.halo);
-    const d = document.createElement('div'); d.className = 'bulle' + (claude ? ' claude' : ''); this.bulleEl = d;
-    this.bulle = new CSS2DObject(d); this.bulle.position.y = 2.05; this.g.add(this.bulle);
+    const ancre = document.createElement('div'); ancre.className = 'ancre';
+    this.tigeEl = document.createElement('div'); this.tigeEl.className = 'tige'; ancre.appendChild(this.tigeEl);
+    const d = document.createElement('div'); d.className = 'bulle' + (claude ? ' claude' : ''); this.bulleEl = d; ancre.appendChild(d);
+    this.bulle = new CSS2DObject(ancre); this.bulle.position.y = 2.05; this.g.add(this.bulle);
+    this.decalage = 0; this.decalageX = 0; this.mesure = null;
     this.chemin = []; this.mode = 'assis'; this.alpha = 1; this.graine = Math.random() * 10; this.face = 0;
   }
-  texte(t, cls = '') { if (this._t !== t + cls) { this._t = t + cls; this.bulleEl.innerHTML = t; this.bulleEl.className = 'bulle' + (this.claude ? ' claude' : '') + (cls ? ' ' + cls : ''); } }
+  texte(t, cls = '') { if (this._t !== t + cls) { this._t = t + cls; this.bulleEl.innerHTML = t; this.bulleEl.className = 'bulle' + (this.claude ? ' claude' : '') + (cls ? ' ' + cls : ''); this.mesure = null; } }
   placer(p) { this.g.position.set(p.x, 0, p.z); this.face = p.face ?? 0; this.g.rotation.y = this.face; }
   aller(pts) { this.chemin = pts.map(p => new THREE.Vector3(p.x, 0, p.z)); }
   maj(dt, t) {
@@ -624,10 +630,60 @@ function image() {
   if (t - tEcran > 500) { tEcran = t; dessinerEcran(); dessinerHorloge(); ambiance(); }
   controles.update();
   composer.render();
+  placerBulles();
   etiquettes.render(scene, camera);
 }
 renderer.setAnimationLoop(image);
 document.addEventListener('visibilitychange', () => renderer.setAnimationLoop(document.hidden ? null : image));
+
+// ================= Bulles sans chevauchement =================
+// Chaque bulle part au-dessus de son robot ; si elle touche une bulle déjà placée, elle monte
+// (ou glisse de côté si c'est plus court). Une tige la relie à son robot.
+const v3 = new THREE.Vector3();
+let tailleTache = null;
+function placerBulles() {
+  const W = innerWidth, H = innerHeight, ECART = 5;
+  const liste = [];
+  for (const rb of robots.values()) {
+    if (!rb.g.visible || rb.alpha <= 0) continue;
+    rb.bulle.getWorldPosition(v3); v3.project(camera);
+    if (v3.z > 1) continue;
+    if (!rb.mesure || rb._tt !== document.body.classList.contains('taches-off')) {
+      rb._tt = document.body.classList.contains('taches-off');
+      rb.mesure = { w: rb.bulleEl.offsetWidth, h: rb.bulleEl.offsetHeight };
+      if (!rb.mesure.w) { rb.mesure = null; continue; } // pas encore dans la page : on mesurera à l'image suivante
+    }
+    liste.push({ rb, x: (v3.x + 1) / 2 * W, y: (1 - v3.y) / 2 * H, w: rb.mesure.w, h: rb.mesure.h });
+  }
+  // les plus proches de la caméra (plus bas à l'écran) d'abord ; la bulle survolée passe en premier
+  liste.sort((a, b) => (b.rb.survol - a.rb.survol) || (b.y - a.y));
+  const places = [];
+  const touche = (a, b) => a.l < b.r + ECART && a.r > b.l - ECART && a.t < b.b + ECART && a.b > b.t - ECART;
+  for (const it of liste) {
+    let dx = 0, dy = 0;
+    const boite = () => ({ l: it.x - it.w / 2 + dx, r: it.x + it.w / 2 + dx, b: it.y - 6 - dy, t: it.y - 6 - dy - it.h });
+    for (let essai = 0; essai < 30; essai++) {
+      const bx = boite(), gene = places.find(p => touche(bx, p));
+      if (!gene) break;
+      const monter = bx.b - (gene.t - ECART);
+      const gauche = bx.r - (gene.l - ECART), droite = (gene.r + ECART) - bx.l;
+      const lateral = Math.min(gauche, droite);
+      if (lateral < monter * 0.6 && Math.abs(dx) + lateral < 90) dx += gauche < droite ? -gauche : droite;
+      else dy += monter;
+    }
+    const bx = boite();
+    if (bx.l < 8) dx += 8 - bx.l; if (bx.r > W - 8) dx -= bx.r - (W - 8);
+    places.push(boite());
+    const rb = it.rb;
+    rb.decalage += (dy - rb.decalage) * 0.25; rb.decalageX += (dx - rb.decalageX) * 0.25;
+    rb.bulleEl.style.transform = `translate(calc(-50% + ${rb.decalageX.toFixed(1)}px), ${(-rb.decalage).toFixed(1)}px)`;
+    const haut = rb.decalage + 6;
+    rb.tigeEl.style.height = (rb.decalage > 3 || Math.abs(rb.decalageX) > it.w / 2 ? haut : 0) + 'px';
+    rb.tigeEl.style.transform = Math.abs(rb.decalageX) > 2 ? `skewX(${(-Math.atan2(rb.decalageX, haut) * 180 / Math.PI).toFixed(1)}deg)` : '';
+    rb.tigeEl.style.transformOrigin = 'bottom';
+    rb.bulle.element.style.setProperty('--point', rb.decalage > 3 ? 1 : 0);
+  }
+}
 
 // ================= Interactions =================
 const ray = new THREE.Raycaster(), souris = new THREE.Vector2(), info = document.getElementById('info');
