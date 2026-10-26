@@ -27,7 +27,7 @@ npm install        # facultatif : copie locale de Three.js (sinon chargé depuis
 npm start          # http://127.0.0.1:4317
 ```
 
-Node 20 ou plus. Aucune autre dépendance.
+Node 20 ou plus. Aucune autre dépendance. La météo est le seul appel réseau du serveur (désactivable).
 
 ## Configuration
 
@@ -50,6 +50,8 @@ Les valeurs par défaut conviennent à un poste qui utilise le kit superviseur J
 | `fete` | fête de fin de semaine : `jour` (0 = dimanche), `heure`, `minutes`, `lotsMin` | `{ "jour": 5, "heure": "17:00", "minutes": 120, "lotsMin": 2 }` |
 | `quotaBas` | quota Codex restant (%) sous lequel les agents bâillent | `20` |
 | `chaleur` | charge / cœurs au-dessus de laquelle la baie chauffe | `0.75` |
+| `meteo` | météo réelle (Open-Meteo) ; `false` : aucun appel réseau | `true` |
+| `meteoLieu` | `latitude`, `longitude`, `nom` de la ville | Kinshasa |
 
 Variables d'environnement prioritaires : `PORT`, `CODEX_OUT`, `CLAUDE_PROJECTS`, `CAMPAIGN_LOCK` (listes séparées par `:`), `BUREAU_CONFIG` (chemin d'un autre fichier de configuration).
 
@@ -120,9 +122,18 @@ Un personnage qui reprend du travail quitte sa maison et marche jusqu'à son pos
 - **Fête de fin de semaine** (`fete` : jour, heure, durée, `lotsMin`) si au moins `lotsMin` lots ont été approuvés depuis lundi : lampions et danse sur la place.
 - **Chronique du jour** en langage simple (« Chloé a fait approuver hub-ui-mobile après deux tours. ») : bouton 📜 ou touche `C`, clic sur le compteur d'assemblage, ou **`/api/chronique`** (texte brut, à recopier ailleurs ; `?jour=AAAA-MM-JJ`, `?format=json`).
 
+### Ambiance
+
+- **Météo réelle** (par défaut Kinshasa) lue par le serveur sur [Open-Meteo](https://open-meteo.com) (gratuit, sans clé), toutes les 15 minutes, en arrière-plan : température et ciel dans le bandeau, pluie, nuages, éclairs d'orage dans la scène. Hors ligne, rien ne bloque (dernière météo connue, ou pas de météo). `"meteo": false` supprime tout appel réseau ; `meteoLieu` change de ville.
+- **Son** discret, **coupé par défaut** (bouton 🔇/🔊 ou touche `S`) : vent, pluie s'il pleut, oiseaux le jour, grillons la nuit ; carillon à chaque approbation, fanfare à chaque intégration qualifiée. Tout est synthétisé dans la page (aucun fichier audio).
+- **Le propriétaire** (« Vous », chapeau) se tient près de la supervision ; il marche jusqu'à l'agent quand on lui pose une question, lui confie une suite ou l'arrête, et jusqu'au portail quand on lance une mission (seulement après une action réussie).
+- **Caméra** : menu 📍 *Lieux* ou touches `0` à `9` pour aller d'un lieu à l'autre ; **mode visite** (🧭 ou touche `V`) : la caméra passe de lieu en lieu et se porte sur chaque événement réel (arrivée, fin de travail, pause café, fête). Toucher la scène reprend la main pendant 20 s.
+
+Pour vérifier le monde sans attendre un vrai événement ni écrire de faux fichiers : dans la console, `__bureau.figer = true`, puis rejouer un état modifié avec `__bureau.appliquer(...)` (ex. un travail passé à `termine`), ou `__bureau.celebrer({ type: 'approbation', texte: '…' })`.
+
 ## Commandes du bureau 3D
 
-Glisser : tourner · molette : zoom · double-clic : recentrer · clic sur un robot : consigne, rapport, journal, questions et actions · `M` : nouvelle mission · `L` : tâches affichées ou non · `R` : mur des trophées · `C` : chronique · `T` : caméra automatique · `N` : jour / nuit · `Échap` : fermer.
+Glisser : tourner · molette : zoom · double-clic : recentrer · clic sur un robot : consigne, rapport, journal, questions et actions · `M` : nouvelle mission · `L` : tâches affichées ou non · `R` : mur des trophées · `C` : chronique · `V` : visite · `0`–`9` : lieux · `S` : son · `T` : caméra automatique · `N` : jour / nuit · `Échap` : fermer.
 
 ## Confidentialité
 

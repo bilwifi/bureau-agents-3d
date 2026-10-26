@@ -262,8 +262,10 @@ export function creerMonde({ ICI, CONFIG }) {
     const residents = [...persos.values()].filter(p => !occupees.has(p.id) && personnages[p.id].derniereFin && maintenant - personnages[p.id].derniereFin < 24 * 3600_000)
       .sort((a, b) => personnages[b.id].derniereFin - personnages[a.id].derniereFin).slice(0, CONFIG.maisonsMax ?? 14).map(p => p.id);
     for (const r of revues) if (!residents.includes(r.producteur)) residents.push(r.producteur);
+    rafraichirMeteo();
     return {
       personnages, affectations, trophees, lieux: lieux(etat), revues, residents, ...rythme(etat, evenements),
+      meteo: CONFIG.meteo === false ? null : meteo,
       employeSemaine: semaine ? { lignee: semaine.id, prenom: semaine.prenom, xp: semaine.xpSemaine } : null,
       evenements: evenements.filter(e => e.date > maintenant - 3 * 86400_000).slice(-80),
     };
@@ -286,6 +288,22 @@ export function creerMonde({ ICI, CONFIG }) {
       compteur: { pilotesQualifies: pilotes.length, dernierPilote: pilotes.at(-1)?.lot || null, lotsApprouvesSemaine: [...approuves], lotsSemaineMin: f.lotsMin ?? 2 },
       fatigue: { quotaBas: !!etat.quota && etat.quota.restant < (CONFIG.quotaBas ?? 20), chaleur: charge / coeurs > (CONFIG.chaleur ?? 0.75), charge, coeurs },
     };
+  }
+
+  // ---------- Météo réelle (Open-Meteo, gratuit, sans clé) ----------
+  // Rafraîchie en arrière-plan toutes les 15 min ; hors ligne ou désactivée (meteo: false) : null, sans jamais bloquer.
+  let meteo = null, meteoDate = 0, meteoEnCours = false;
+  const CIELS = [[[0], 'dégagé', 'soleil'], [[1, 2], 'peu nuageux', 'eclaircies'], [[3], 'couvert', 'nuages'], [[45, 48], 'brouillard', 'brouillard'],
+    [[51, 53, 55, 56, 57], 'bruine', 'pluie'], [[61, 63, 65, 66, 67, 80, 81, 82], 'pluie', 'pluie'], [[71, 73, 75, 77, 85, 86], 'neige', 'neige'], [[95, 96, 99], 'orage', 'orage']];
+  function rafraichirMeteo() {
+    if (CONFIG.meteo === false || meteoEnCours || Date.now() - meteoDate < 15 * 60_000) return;
+    meteoEnCours = true; meteoDate = Date.now();
+    const l = { latitude: -4.3217, longitude: 15.3125, nom: 'Kinshasa', ...(CONFIG.meteoLieu || {}) };
+    const url = `https://api.open-meteo.com/v1/forecast?latitude=${Number(l.latitude)}&longitude=${Number(l.longitude)}&current=temperature_2m,weather_code,is_day,precipitation,cloud_cover,wind_speed_10m&timezone=auto`;
+    fetch(url, { signal: AbortSignal.timeout(5000) }).then(r => r.ok ? r.json() : Promise.reject(new Error('HTTP ' + r.status))).then(j => {
+      const c = j.current || {}, ciel = CIELS.find(([codes]) => codes.includes(c.weather_code)) || [[], 'variable', 'nuages'];
+      meteo = { lieu: l.nom, temperature: c.temperature_2m, code: c.weather_code, libelle: ciel[1], ciel: ciel[2], jour: c.is_day === 1, pluie: c.precipitation, nuages: c.cloud_cover, vent: c.wind_speed_10m, heure: c.time, lueA: Date.now() };
+    }).catch(() => { meteoDate = Date.now() - 10 * 60_000; /* nouvel essai dans 5 min ; on garde la dernière météo connue */ }).finally(() => { meteoEnCours = false; });
   }
 
   // ---------- Chronique du jour, en langage simple ----------

@@ -28,5 +28,7 @@
   "reunionMinutes": 15,
   "fete": { "jour": 5, "heure": "17:00", "minutes": 120, "lotsMin": 2 },
   "quotaBas": 20,
-  "chaleur": 0.75
+  "chaleur": 0.75,
+  "meteo": true,
+  "meteoLieu": { "latitude": -4.3217, "longitude": 15.3125, "nom": "Kinshasa" }
 }

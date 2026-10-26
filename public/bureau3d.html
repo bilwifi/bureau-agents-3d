@@ -23,9 +23,11 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #07080d; col
 .kpi.alerte { border-color: rgba(255,107,107,.7); box-shadow: 0 0 24px rgba(255,107,107,.35); animation: pouls 1.6s infinite; }
 .kpi.alerte b { color: var(--rouge); }
 @keyframes pouls { 50% { box-shadow: 0 0 6px rgba(255,107,107,.15); } }
-#liens { margin-left: auto; padding: 10px 14px; pointer-events: auto; display: flex; gap: 12px; align-items: center; }
-#liens a, #liens button { color: var(--texte); text-decoration: none; font: inherit; font-size: 12px; background: none; border: 0; cursor: pointer; opacity: .8; }
+#liens { margin-left: auto; padding: 10px 14px; pointer-events: auto; display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; }
+#liens a, #liens button { white-space: nowrap; color: var(--texte); text-decoration: none; font: inherit; font-size: 12px; background: none; border: 0; cursor: pointer; opacity: .8; }
 #liens a:hover, #liens button:hover { opacity: 1; }
+#liens select { background: none; color: var(--texte); border: 0; font: inherit; font-size: 12px; opacity: .8; cursor: pointer; }
+#liens select option { background: #10121b; }
 #fil { position: fixed; left: 16px; bottom: 16px; width: min(520px, calc(100% - 32px)); max-height: 168px; overflow: hidden; padding: 10px 14px; z-index: 5; font: 12px/1.6 "JetBrains Mono", monospace; }
 #fil div { color: var(--doux); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; animation: entre .5s ease; }
 #fil b { color: var(--texte); font-weight: 600; }
@@ -133,7 +135,8 @@ body.taches-off .bulle .b-tache { display: none; }
   <div class="kpi verre"><span>Terminés 24 h</span><b id="k-jour">–</b></div>
   <div class="kpi verre"><span>Quota Codex</span><b id="k-quota">–</b></div>
   <div class="kpi verre" id="k-alim-c"><span>Alimentation</span><b id="k-alim">–</b></div>
-  <div id="liens" class="verre"><button id="b-mission" title="Lancer un agent Codex (M)" hidden>＋ Mission</button><button id="b-trophees" title="Mur des trophées (R)">🏆 Trophées</button><button id="b-chronique" title="Chronique du jour (C)">📜 Chronique</button><button id="b-taches" title="Afficher les tâches (L)">🏷 Tâches</button><button id="b-tour" title="Caméra automatique (T)">🎬 Tournage</button><button id="b-nuit" title="Jour / nuit (N)">🌙 Nuit</button><a href="/pixel">Pixel</a><a href="/tableau">Tableau →</a></div>
+  <div class="kpi verre" id="k-meteo-c" hidden><span id="k-meteo-l">Météo</span><b id="k-meteo">–</b></div>
+  <div id="liens" class="verre"><button id="b-mission" title="Lancer un agent Codex (M)" hidden>＋ Mission</button><button id="b-trophees" title="Mur des trophées (R)">🏆 Trophées</button><button id="b-chronique" title="Chronique du jour (C)">📜 Chronique</button><button id="b-taches" title="Afficher les tâches (L)">🏷 Tâches</button><select id="b-lieux" title="Aller à un lieu (1 à 9)"><option value="">📍 Lieux</option></select><button id="b-visite" title="Visite : la caméra passe d'un lieu à l'autre et suit les événements (V)">🧭 Visite</button><button id="b-tour" title="Caméra automatique (T)">🎬 Tournage</button><button id="b-son" title="Ambiance sonore (S)">🔇 Son</button><button id="b-nuit" title="Jour / nuit (N)">🌙 Nuit</button><a href="/pixel">Pixel</a><a href="/tableau">Tableau →</a></div>
 </div>
 <div id="fil" class="verre"><div>En attente des premières nouvelles…</div></div>
 <div id="legende" class="verre">
@@ -797,11 +800,12 @@ function appliquer(s) {
       }
       rb.zoneVoulue = zv;
       robots.set(nom, rb);
+      if (!premier) suivre(rb.place.x, rb.place.z);
     } else {
       if (rb.job && rb.job.statut !== 'silencieux' && t.statut === 'silencieux') noter(`🌿 <b>${esc(nomP || t.titre || nom)}</b> n'écrit plus rien depuis ${duree(now - t.derniereEcriture)} : repos au jardin`, new Date(), nom);
       // changement de lieu (attente d'une place, longue commande, silence…) : il s'y rend
       if (rb.zoneVoulue !== zv && ['assis', 'entre', 'va'].includes(rb.mode)) {
-        if (zv === 'cafe') noter(`☕ <b>${esc(nomP || nom)}</b> ${esc(lieux[nom]?.raison || 'patiente')} : pause au café`, new Date(), nom);
+        if (zv === 'cafe') { noter(`☕ <b>${esc(nomP || nom)}</b> ${esc(lieux[nom]?.raison || 'patiente')} : pause au café`, new Date(), nom); suivre(19.5, -4.5); }
         rb.zoneVoulue = zv; if (zv !== 'cafe') deplacer(rb, zv, 'va');
       }
     }
@@ -822,6 +826,7 @@ function appliquer(s) {
     occupees.delete(rb.place);
     rb.aller(itineraire(rb.g.position, rb.place, POSTE_IMPRIMANTE)); rb.place = POSTE_IMPRIMANTE; rb.mode = 'vers-imprimante';
     noter(`<b>${esc(rb.perso?.prenom || rb.job.titre || rb.nom)}</b> a terminé : <span style="color:${rb.verdict.c}">${esc(rb.verdict.txt)}</span>`, new Date(), rb.nom);
+    suivre(POSTE_IMPRIMANTE.x, POSTE_IMPRIMANTE.z);
   }
   // Résidents : personnages sans travail ; ils vivent dans les maisons, rejoignent la revue de leur lot.
   const residents = new Set(m.residents || []), reunions = new Map((m.revues || []).map(r => [r.producteur, r]));
@@ -863,6 +868,8 @@ function appliquer(s) {
   document.getElementById('k-alim').textContent = bt ? (bt.secteur ? 'Secteur' : `🔋 ${bt.pourcent} %`) : '–';
   document.getElementById('k-alim-c').classList.toggle('alerte', !!(bt && !bt.secteur && vivants.length));
   document.getElementById('b-mission').hidden = !(s.actions && JETON_PAGE);
+  const mt = m.meteo; $('k-meteo-c').hidden = !mt;
+  if (mt) { $('k-meteo-l').textContent = mt.lieu; $('k-meteo').textContent = `${Math.round(mt.temperature)}° ${ICONES_CIEL[mt.ciel] === '☀️' && !mt.jour ? '🌙' : ICONES_CIEL[mt.ciel] || ''}`; $('k-meteo-c').title = `${mt.libelle}, nuages ${mt.nuages} %, vent ${Math.round(mt.vent)} km/h (Open-Meteo, ${new Date(mt.lueA).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })})`; }
   document.getElementById('maj').textContent = `en direct · ${new Date(now).toLocaleTimeString('fr-FR')} · charge ${s.machine.charge[0]}`;
   dessinerEcran(); dessinerTrophees(); dessinerCompteur();
   if ($('panneau').dataset.vue === 'chronique') panneauChronique();
@@ -878,6 +885,7 @@ function nouveauxEvenements(m) {
 }
 function celebrer(e) {
   const rb = e.lignee && [...robots.values()].find(r => r.lignee === e.lignee);
+  if (e.type === 'approbation' || e.type === 'integration') { carillon(e.type); suivre(PLACE_FETE.x, PLACE_FETE.z, 1.2); }
   if (e.type === 'approbation') { confettis(); if (rb) { confettis(rb.g.position); rb.saut = performance.now(); } noter(`🎉 ${esc(e.texte)}`); }
   else if (e.type === 'integration') { feuArtifice(); if (rb) rb.saut = performance.now(); noter(`🎆 ${esc(e.texte)}`); }
   else if (e.type === 'badge' || e.type === 'niveau') { if (rb) gerbe(rb.g.position, 0xffd35c, { y: 2.2, n: 50, force: 1.5, vie: 1.6 }); noter(`🏅 ${esc(e.texte)}`); }
@@ -932,15 +940,16 @@ function dessinerHorloge() {
 let nuitForcee = null;
 const nuitAuto = () => { const h = new Date().getHours(); return h >= 20 || h < 7; };
 const estNuit = () => nuitForcee ?? nuitAuto();
-const CIEL = { jour: new THREE.Color(0x9fd3ff), soir: new THREE.Color(0xff9a6a), nuit: new THREE.Color(0x0d1640) };
+const CIEL = { jour: new THREE.Color(0x9fd3ff), soir: new THREE.Color(0xff9a6a), nuit: new THREE.Color(0x0d1640), gris: new THREE.Color(0x6b7383) };
 function ambiance() {
   const n = estNuit(), h = new Date().getHours();
   const soir = !n && nuitForcee == null && (h < 8 || h >= 18);
   scene.background = new THREE.Color(n ? 0x05060b : 0x10121b);
-  hemi.intensity = n ? 0.22 : 0.9; soleil.intensity = n ? 0.25 : 2.2;
+  const mt = donnees?.monde?.meteo, couvert = mt ? Math.min(1, (mt.nuages || 0) / 100) : 0, mouille = mt?.ciel === 'pluie' || mt?.ciel === 'orage';
+  soleil.intensity = (n ? 0.25 : 2.2) * (1 - couvert * 0.4) * (mouille ? 0.7 : 1);
   soleil.color.setHex(n ? 0x8fa8ff : soir ? 0xffc59a : 0xfff1dc);
   bloom.strength = n ? 0.8 : 0.45;
-  vitres.forEach(v => v.material.color.copy(n ? CIEL.nuit : soir ? CIEL.soir : CIEL.jour));
+  vitres.forEach(v => v.material.color.copy(n ? CIEL.nuit : soir ? CIEL.soir : CIEL.jour).lerp(CIEL.gris, mouille ? 0.6 : couvert * 0.4));
   liseres.forEach(m => m.emissiveIntensity = n ? 2.4 : 1.4);
   document.getElementById('b-nuit').textContent = n ? '☀️ Jour' : '🌙 Nuit';
 }
@@ -981,10 +990,115 @@ function animerLieu(rb, t) {
   else if (rb.mode === 'place' && rb.rassemblement === 'fete') { rb.g.rotation.y += Math.sin(s * 2) * 0.03; rb.corps.position.y = Math.abs(Math.sin(s * 6)) * 0.15; B[0].rotation.x = -2.4 + Math.sin(s * 6) * 0.5; B[1].rotation.x = -2.4 - Math.sin(s * 6) * 0.5; }
   else if (rb.mode === 'place') { rb.tete.rotation.x = Math.sin(s * 1.4) * 0.12; }
 }
+// ================= Ambiance : météo, son, propriétaire, caméra =================
 // Caméra : glisse doucement vers un lieu (reprise en main dès qu'on touche la scène).
 let visee = null;
 function viser(x, z, zoom = 1.2) { visee = { cible: new THREE.Vector3(x, 0.5, z), zoom }; }
-renderer.domElement.addEventListener('pointerdown', () => { visee = null; });
+const LIEUX = [['Vue d’ensemble', CAM_CIBLE.x, CAM_CIBLE.z, null], ['Atelier', -7.3, -3.6, 1.3], ['Salle de revue', 0.4, -3.6, 1.4], ['Intégration', 7.9, -3.6, 1.3], ['Supervision', -6.5, 5.2, 1.4],
+  ['Café', 19.5, -4.5, 1.4], ['Bibliothèque', 19.5, 4.6, 1.4], ['Jardin', -22, 0, 1.1], ['Place des fêtes', 0, 18, 1.2], ['Maisons', 3, 25, 0.9]];
+const allerLieu = i => { const [, x, z, zoom] = LIEUX[i]; viser(x, z, zoom ?? CAM_ZOOM()); };
+LIEUX.forEach(([nom], i) => document.getElementById('b-lieux').insertAdjacentHTML('beforeend', `<option value="${i}">${i ? i + ' · ' : ''}${nom}</option>`));
+document.getElementById('b-lieux').onchange = e => { if (e.target.value !== '') { controles.autoRotate = false; allerLieu(Number(e.target.value)); } e.target.value = ''; e.target.blur(); };
+// Visite : la caméra passe d'un lieu à l'autre et se porte sur chaque événement réel (arrivée, fin, fête…).
+const visite = { active: false, i: 0, prochain: 0, pause: 0 };
+function basculeVisite() { visite.active = !visite.active; visite.prochain = 0; controles.autoRotate = false; document.getElementById('b-visite').style.opacity = visite.active ? 1 : ''; if (!visite.active) visee = null; }
+function suivre(x, z, zoom = 1.5) { if (!visite.active || performance.now() < visite.pause) return; viser(x, z, zoom); visite.prochain = performance.now() + 9000; }
+function majVisite(t) { if (visite.active && !visee && t > visite.prochain && t > visite.pause) { visite.i = (visite.i + 1) % LIEUX.length; allerLieu(visite.i); visite.prochain = t + 9000; } }
+document.getElementById('b-visite').onclick = basculeVisite;
+renderer.domElement.addEventListener('pointerdown', () => { visee = null; if (visite.active) visite.pause = performance.now() + 20000; });
+addEventListener('keydown', e => {
+  if (/INPUT|TEXTAREA|SELECT/.test(document.activeElement?.tagName) || e.metaKey || e.ctrlKey) return;
+  if (e.key === 'v' || e.key === 'V') basculeVisite();
+  if (e.key === 's' || e.key === 'S') basculeSon();
+  if (/^[0-9]$/.test(e.key)) { controles.autoRotate = false; allerLieu(Number(e.key)); }
+});
+
+// ----- Météo réelle (servie par le serveur, Open-Meteo) : pluie, nuages, orage -----
+const ICONES_CIEL = { soleil: '☀️', eclaircies: '⛅', nuages: '☁️', brouillard: '🌫', pluie: '🌧', neige: '❄️', orage: '⛈' };
+const meteoActuelle = () => donnees?.monde?.meteo || null;
+const PLUIE = (() => {
+  const n = 1400, p = new Float32Array(n * 6);
+  for (let i = 0; i < n; i++) { const x = -30 + Math.random() * 58, y = Math.random() * 16, z = -12 + Math.random() * 44; p.set([x, y, z, x - 0.06, y - 0.45, z], i * 6); }
+  const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(p, 3));
+  const l = new THREE.LineSegments(g, new THREE.LineBasicMaterial({ color: 0x9fc6ff, transparent: true, opacity: 0.5, depthWrite: false })); l.visible = false; scene.add(l); return l;
+})();
+const NUAGES = [];
+for (let i = 0; i < 6; i++) {
+  const g = new THREE.Group(); g.position.set(-30 + i * 11, 12 + (i % 3), -6 + (i * 13 % 30)); scene.add(g);
+  const mat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0, depthWrite: false });
+  for (let k = 0; k < 4; k++) { const b = new THREE.Mesh(new THREE.SphereGeometry(1.4 + (k % 2) * 0.6, 12, 8), mat); b.position.set(k * 1.5 - 2.2, (k % 2) * 0.4, (k % 3) * 0.5); b.scale.y = 0.55; g.add(b); }
+  NUAGES.push({ g, mat, v: 0.4 + (i % 3) * 0.2 });
+}
+let eclair = 0;
+function majMeteo(t, dt) {
+  const mt = meteoActuelle(), ciel = mt?.ciel;
+  PLUIE.visible = ciel === 'pluie' || ciel === 'orage';
+  if (PLUIE.visible) {
+    const a = PLUIE.geometry.attributes.position, v = (ciel === 'orage' ? 22 : 16) * dt;
+    for (let i = 0; i < a.count; i += 2) { let y = a.getY(i) - v; if (y < 0) y += 16; a.setY(i, y); a.setY(i + 1, y - 0.45); }
+    a.needsUpdate = true;
+  }
+  const couvert = mt ? Math.min(1, (mt.nuages || 0) / 100) : 0;
+  NUAGES.forEach(n => { n.g.visible = couvert > 0.35; if (!n.g.visible) return; n.g.position.x += n.v * dt; if (n.g.position.x > 34) n.g.position.x = -34; n.mat.opacity = couvert * 0.16; });
+  if (ciel === 'orage' && Math.random() < dt / 9) { eclair = t; if (son.actif) tonnerre(); }
+  hemi.intensity = (estNuit() ? 0.22 : 0.9) * (1 - couvert * 0.25) + (t - eclair < 140 ? 2.5 : 0);
+}
+
+// ----- Ambiance sonore discrète (coupée par défaut) : vent, pluie, oiseaux le jour, grillons la nuit ; carillon aux fêtes -----
+const son = { actif: false, ctx: null, maitre: null, pluie: null, minuterie: null };
+function bruit(ctx) { const b = ctx.createBuffer(1, ctx.sampleRate * 2, ctx.sampleRate), d = b.getChannelData(0); let x = 0; for (let i = 0; i < d.length; i++) { x = (x + 0.02 * (Math.random() * 2 - 1)) / 1.02; d[i] = x * 3.5 + (Math.random() * 2 - 1) * 0.02; } return b; }
+function demarrerSon() {
+  const ctx = son.ctx = new AudioContext(); son.maitre = ctx.createGain(); son.maitre.gain.value = 0.6; son.maitre.connect(ctx.destination);
+  const source = (filtre, freq, gain) => { const s = ctx.createBufferSource(); s.buffer = bruit(ctx); s.loop = true; const f = ctx.createBiquadFilter(); f.type = filtre; f.frequency.value = freq; const g = ctx.createGain(); g.gain.value = gain; s.connect(f).connect(g).connect(son.maitre); s.start(); return g; };
+  source('lowpass', 380, 0.05); son.pluie = source('highpass', 1200, 0);
+  son.minuterie = setInterval(() => {
+    const mt = meteoActuelle(); son.pluie.gain.setTargetAtTime(mt?.ciel === 'pluie' || mt?.ciel === 'orage' ? 0.09 : 0, ctx.currentTime, 1);
+    if (Math.random() < 0.35) estNuit() ? grillon() : oiseau();
+  }, 1600);
+}
+function note(freq, debut, duree = 0.5, type = 'sine', volume = 0.05) {
+  const c = son.ctx, o = c.createOscillator(), g = c.createGain(); o.type = type; o.frequency.value = freq;
+  g.gain.setValueAtTime(0, c.currentTime + debut); g.gain.linearRampToValueAtTime(volume, c.currentTime + debut + 0.02); g.gain.exponentialRampToValueAtTime(0.0001, c.currentTime + debut + duree);
+  o.connect(g).connect(son.maitre); o.start(c.currentTime + debut); o.stop(c.currentTime + debut + duree + 0.05); return o;
+}
+function oiseau() { const f = 2400 + Math.random() * 1600; for (let i = 0; i < 2 + Math.floor(Math.random() * 3); i++) { const o = note(f, i * 0.13, 0.1, 'sine', 0.012); o.frequency.exponentialRampToValueAtTime(f * 1.3, son.ctx.currentTime + i * 0.13 + 0.08); } }
+function grillon() { for (let i = 0; i < 6; i++) note(4300, i * 0.06, 0.035, 'square', 0.003); }
+function tonnerre() { const c = son.ctx, s = c.createBufferSource(); s.buffer = bruit(c); const f = c.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = 160; const g = c.createGain(); g.gain.setValueAtTime(0.5, c.currentTime); g.gain.exponentialRampToValueAtTime(0.001, c.currentTime + 2.2); s.connect(f).connect(g).connect(son.maitre); s.start(); s.stop(c.currentTime + 2.3); }
+function carillon(type) {
+  if (!son.actif) return;
+  const notes = type === 'integration' ? [392, 523.25, 659.25, 783.99, 1046.5, 1318.5] : [523.25, 659.25, 783.99, 1046.5];
+  notes.forEach((f, i) => note(f, i * 0.12, 0.9, 'triangle', 0.06));
+}
+function basculeSon() {
+  son.actif = !son.actif;
+  if (son.actif && !son.ctx) demarrerSon(); else if (son.ctx) son.actif ? son.ctx.resume() : son.ctx.suspend();
+  document.getElementById('b-son').textContent = son.actif ? '🔊 Son' : '🔇 Son';
+}
+document.getElementById('b-son').onclick = basculeSon;
+
+// ----- Le propriétaire : il marche jusqu'à l'agent quand on lui pose une question, lance une suite ou une mission -----
+const BASE_PROPRIO = { x: -2.3, z: 7.6, couloirX: -2.3, face: -2.4, zone: 'proprio' };
+const proprio = new Robot('proprietaire', false, 'analyse', { id: null, couleur: '#ffd35c', accessoire: 'chapeau', couleurAccessoire: '#2b2f3d' });
+proprio.perso = null; proprio.lignee = null; proprio.proprio = true; proprio.place = BASE_PROPRIO; proprio.placer(BASE_PROPRIO); proprio.mode = 'base'; proprio.job = { nom: 'proprietaire', statut: 'repos' };
+robots.set('proprietaire', proprio);
+function proprioVers(nom, texte) {
+  const rb = nom && robots.get(nom);
+  let cible;
+  if (rb && !rb.proprio) {
+    const p = rb.g.position, pl = rb.place;
+    const x = pl && !pl.dehors && pl.couloirX != null && Math.abs(pl.couloirX - p.x) > 0.5 ? pl.couloirX : p.x + 0.9, z = pl && !pl.dehors && pl.couloirX != null && Math.abs(pl.couloirX - p.x) > 0.5 ? p.z : p.z + 0.7;
+    cible = { x, z, couloirX: x, allee: x, dehors: estDehors({ x, z }), face: Math.atan2(p.x - x, p.z - z), zone: 'visite' };
+  } else cible = { x: PORTAIL.x, z: PORTAIL.z - 2, couloirX: PORTAIL.x, allee: PORTAIL.x, dehors: true, face: Math.PI, zone: 'visite' };
+  proprio.mission = texte; proprio.aller(itineraire(proprio.g.position, proprio.place, cible)); proprio.place = cible; proprio.mode = 'visite-va';
+  suivre(cible.x, cible.z);
+}
+function majProprio(t) {
+  if (proprio.chemin.length) return;
+  if (proprio.mode === 'visite-va') { proprio.mode = 'visite'; proprio.face = proprio.place.face; proprio.retour = t + 7000; }
+  else if (proprio.mode === 'visite' && t > proprio.retour) { proprio.aller(itineraire(proprio.g.position, proprio.place, BASE_PROPRIO)); proprio.place = BASE_PROPRIO; proprio.mode = 'retour'; proprio.mission = null; }
+  else if (proprio.mode === 'retour') { proprio.mode = 'base'; proprio.face = BASE_PROPRIO.face; }
+  if (proprio.mode === 'visite') { proprio.bras[1].rotation.x = -1.2 + Math.sin(t * 0.008) * 0.3; }
+}
 // ================= Boucle =================
 const horlogeJ = new THREE.Clock();
 let tEcran = 0;
@@ -1011,7 +1125,8 @@ function image() {
     const qui = rb.perso ? `<span class="b-nom" style="--nom:${rb.perso.couleur}">${esc(rb.perso.prenom)}<sup>${rb.perso.niveau}</sup>${icHumeur}</span>` : '';
     const ouverte = rb.survol ? ' ouverte' : '';
     const lieu = donnees?.monde?.lieux?.[rb.nom];
-    if (rb.estResident) {
+    if (rb.proprio) rb.texte(`<div class="b-act"><span class="b-nom" style="--nom:#ffd35c">Vous</span>${rb.mission ? esc(rb.mission) : '👤'}</div>`, (rb.mission ? '' : 'mini') + ouverte);
+    else if (rb.estResident) {
       if (rb.mode === 'reunion' || rb.mode === 'vers-reunion') rb.texte(`<div class="b-act">${qui}🤝 revue de ${esc(rb.reunion || '')}</div>`, ouverte.trim());
       else if (rb.mode === 'place' || rb.mode === 'vers-place') rb.texte(`<div class="b-act">${qui}${rb.rassemblement === 'fete' ? '🎶' : '☀️'}</div>`, 'mini' + ouverte);
       else rb.texte(`<div class="b-act">${qui}${rb.mode === 'maison' ? (rb.dortForce ? '💤' : '🔧') : '🏠'}</div>`, 'mini' + ouverte);
@@ -1052,7 +1167,7 @@ function image() {
   const nuit = estNuit();
   lampadaires.forEach(m => m.emissiveIntensity = nuit ? 3 : 0.2);
   MAISONS.forEach(ms => ms.fenetre.emissiveIntensity = nuit ? 1.8 : 0.1);
-  majFusees(dt);
+  majFusees(dt); majMeteo(t, dt); majProprio(t); majVisite(t);
   LAMPIONS.visible = !!donnees?.monde?.fete; if (LAMPIONS.visible) LAMPIONS.children.forEach((l, i) => l.material.emissiveIntensity = 1.5 + Math.sin(t * 0.004 + i) * 1.2);
   const chaud = !!donnees?.monde?.fatigue?.chaleur;
   CHALEUR.forEach(c => { const u = (t * 0.0004 + c.ph) % 1; c.p.position.y = 3.5 + u * 2.2; c.p.material.opacity = chaud ? Math.sin(u * Math.PI) * 0.35 : 0; c.p.scale.x = 1 + Math.sin(t * 0.005 + c.ph * 9) * 0.25; });
@@ -1140,6 +1255,7 @@ renderer.domElement.addEventListener('pointermove', e => {
   const j = rb.job || {}, now = donnees.genereA;
   const type = j.session ? 'Session Claude (superviseur)' : `${(ROLE[j.role] || ROLE.analyse).nom}${j.tour ? ' · tour ' + j.tour : ''} · lot ${esc(j.lot)} · ${j.agent === 'claude' ? 'Claude' : 'Codex ' + (j.modele || '')}`;
   const pe = rb.perso;
+  if (rb.proprio) { info.innerHTML = `<b>Vous, le propriétaire</b>Vous marchez jusqu'à l'agent quand vous lui posez une question, lui confiez une suite, l'arrêtez ou lancez une mission.`; info.style.display = 'block'; info.style.left = Math.min(e.clientX + 18, innerWidth - 400) + 'px'; info.style.top = Math.min(e.clientY + 18, innerHeight - info.offsetHeight - 8) + 'px'; return; }
   if (rb.estResident && pe) {
     info.innerHTML = `<span style="color:${pe.couleur}">● <b style="display:inline">${esc(pe.prenom)}</b></span> · niveau ${pe.niveau} ${pe.titre} · ${esc(pe.trait)} ${pe.badges.map(b => b.icone).join('')}\n` +
       (rb.reunion ? `Rejoint son relecteur : revue de ${esc(rb.reunion)} en cours\n` : `Pas de travail en cours · ${rb.dortForce ? 'dort' : 'bricole'} à la maison\n`) +
@@ -1160,7 +1276,7 @@ renderer.domElement.addEventListener('pointermove', e => {
 });
 const cliquables = [];
 renderer.domElement.addEventListener('click', e => {
-  const rb = robotSous(e); if (rb) return rb.estResident ? ouvrirPerso(rb.lignee) : ouvrir(rb.nom);
+  const rb = robotSous(e); if (rb?.proprio) return; if (rb) return rb.estResident ? ouvrirPerso(rb.lignee) : ouvrir(rb.nom);
   const o = ray.intersectObjects(cliquables, true)[0]?.object; let p = o; while (p && !p.userData.panneau) p = p.parent;
   if (p) ouvrirPanneau(p.userData.panneau);
 });
@@ -1312,16 +1428,16 @@ async function soumettre(form, envoi, succes) {
 $('f-question').addEventListener('submit', async e => {
   e.preventDefault(); const f = e.target, nom = tiroirNom;
   const r = await soumettre(f, () => poster('/api/action/question', { nom, question: f.question.value }), () => 'Question envoyée : la réponse arrive dans l\'onglet Questions.');
-  if (r) { f.question.value = ''; noter(`💬 Question envoyée à <b>${esc(travailDe(nom)?.titre || nom)}</b>`); setTimeout(() => { cacherFormulaires(); choisirVue('questions'); }, 700); }
+  if (r) { proprioVers(nom, '💬 pose une question'); f.question.value = ''; noter(`💬 Question envoyée à <b>${esc(travailDe(nom)?.titre || nom)}</b>`); setTimeout(() => { cacherFormulaires(); choisirVue('questions'); }, 700); }
 });
 $('f-suite').addEventListener('submit', async e => {
   e.preventDefault(); const f = e.target, source = tiroirNom;
   const r = await soumettre(f, () => poster('/api/action/suite', { source, nom: f.nom.value, consigne: f.consigne.value }), r => `Lancé : ${r.nom}. Le robot arrive par la porte.`);
-  if (r) { f.consigne.value = ''; f.ok.checked = false; noter(`↪ Suite lancée pour <b>${esc(source)}</b> : ${esc(r.nom)}`); }
+  if (r) { proprioVers(robots.has(source) ? source : null, '↪ confie une suite'); f.consigne.value = ''; f.ok.checked = false; noter(`↪ Suite lancée pour <b>${esc(source)}</b> : ${esc(r.nom)}`); }
 });
 async function arreterAgent(nom) {
   if (!confirm(`Arrêter ${nom} ?\n\nArrêt normal (SIGTERM) de l'agent et de ses commandes ; sa place d'essais est libérée. Le travail en cours est perdu.`)) return;
-  try { const r = await poster('/api/action/arret', { nom }); noter(`⏹ Arrêt demandé pour <b>${esc(nom)}</b> (${r.signales} processus)`); $('t-actions').insertAdjacentHTML('beforeend', '<span class="note">Arrêt envoyé.</span>'); }
+  try { const r = await poster('/api/action/arret', { nom }); proprioVers(nom, "⏹ demande l'arrêt"); noter(`⏹ Arrêt demandé pour <b>${esc(nom)}</b> (${r.signales} processus)`); $('t-actions').insertAdjacentHTML('beforeend', '<span class="note">Arrêt envoyé.</span>'); }
   catch (err) { alert('Arrêt impossible : ' + err.message); }
 }
 // ----- Nouvelle mission -----
@@ -1342,7 +1458,7 @@ $('modale-mission').addEventListener('click', e => { if (e.target.id === 'modale
 fm.addEventListener('submit', async e => {
   e.preventDefault();
   const r = await soumettre(fm, () => poster('/api/action/mission', { nom: fm.nom.value, consigne: fm.consigne.value }), r => `Lancée : ${r.nom}. Le robot arrive par la porte.`);
-  if (r) { noter(`＋ Mission lancée : <b>${esc(r.nom)}</b>`); fm.reset(); setTimeout(fermerMission, 1200); }
+  if (r) { proprioVers(null, '＋ accueille la mission'); noter(`＋ Mission lancée : <b>${esc(r.nom)}</b>`); fm.reset(); setTimeout(fermerMission, 1200); }
 });
 addEventListener('keydown', e => { if ((e.key === 'm' || e.key === 'M') && !/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName) && !$('b-mission').hidden) ouvrirMission(); });
 
@@ -1353,7 +1469,7 @@ async function boucle() {
   setTimeout(boucle, 4000);
 }
 dessinerEcran(); dessinerHorloge(); ambiance(); boucle();
-window.__bureau = { robots, appliquer, ouvrir, celebrer, viser, figer: false, get donnees() { return donnees; } };
+window.__bureau = { robots, appliquer, ouvrir, celebrer, viser, proprioVers, basculeVisite, image, renderer, figer: false, get donnees() { return donnees; } };
 </script>
 </body>
 </html>

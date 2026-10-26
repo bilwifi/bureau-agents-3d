@@ -37,6 +37,8 @@ const DEFAUT = {
   fete: { jour: 5, heure: '17:00', minutes: 120, lotsMin: 2 }, // fête de fin de semaine si assez de lots approuvés
   quotaBas: 20,            // quota Codex restant (%) sous lequel les agents Codex bâillent
   chaleur: 0.75,           // charge / cœurs au-dessus de laquelle la baie chauffe
+  meteo: true,             // météo réelle (Open-Meteo, sans clé) ; false : aucun appel réseau
+  meteoLieu: { latitude: -4.3217, longitude: 15.3125, nom: 'Kinshasa' },
 };
 const CONFIG = (() => {
   let c = { ...DEFAUT };
