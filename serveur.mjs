@@ -9,6 +9,7 @@ import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { creerActions, JETON } from './actions.mjs';
 import { creerMonde } from './monde.mjs';
+import { creerLecteurCodex } from './codex-local.mjs';
 
 const ICI = path.dirname(fileURLToPath(import.meta.url));
 
@@ -20,6 +21,8 @@ const DEFAUT = {
   consignes: ['/private/tmp/claude-*/*/*/scratchpad', '/private/tmp/claude-*/*/*/scratchpad/codex'],
   claudeProjects: ['~/.claude/projects/*'],
   claudeProjectFilter: null,
+  // Sessions natives Codex Desktop/CLI : lues par défaut sous Windows seulement (ailleurs, codex-run.sh écrit les journaux suivis ci-dessus).
+  codexSessions: process.platform === 'win32' ? [path.join(process.env.CODEX_HOME || path.join(os.homedir(), '.codex'), 'sessions')] : [],
   campaignLock: '/tmp/jnapps-campaign.lock',
   placesMax: 6,
   silenceMinutes: 15,
@@ -51,12 +54,14 @@ const CONFIG = (() => {
   return c;
 })();
 const FENETRE = CONFIG.fenetreHeures * 3600_000;
+const codexLocal = creerLecteurCodex({ racines: CONFIG.codexSessions, fenetreHeures: CONFIG.fenetreHeures, silenceMinutes: CONFIG.silenceMinutes });
 
 // Développe un motif simple : `~` et `*` par segment de chemin.
 function developper(motif) {
-  const abs = motif.replace(/^~(?=\/|$)/, os.homedir());
-  let courants = [abs.startsWith('/') ? '/' : ''];
-  for (const seg of abs.split('/').filter(Boolean)) {
+  const abs = path.resolve(motif.replace(/^~(?=\/|$)/, os.homedir()));
+  const racine = path.parse(abs).root;
+  let courants = [racine];
+  for (const seg of abs.slice(racine.length).split(/[\\/]/).filter(Boolean)) {
     const suivants = [];
     for (const base of courants) {
       if (!seg.includes('*')) { suivants.push(path.join(base, seg)); continue; }
@@ -119,6 +124,7 @@ function etimeEnSec(e) {
 }
 function travauxVivants() {
   const vivants = new Map();
+  if (process.platform === 'win32') return vivants; // Les sessions natives sont suivies par leurs événements.
   try {
     const ps = execFileSync('ps', ['-axo', 'pid=,etime=,command='], { encoding: 'utf8', maxBuffer: 1 << 24 });
     for (const ligne of ps.split('\n')) {
@@ -270,7 +276,7 @@ function agentsCodex(maintenant) {
       commande: vivant ? derniereCommande(q) : null,
       derniereMarque: vivant ? ([...q.matchAll(/\n(exec|codex|apply patch|tokens used)\n/g)].at(-1)?.[1] ?? null) : null,
       limite: /limite_atteinte=1/.test(q), repli: /fallback=gpt-6-sol/.test(q),
-      aSession: /session id:\s*[0-9a-f-]{36}/.test(h), lanceParBureau: /^lance_par=bureau/m.test(h),
+      aSession: /session id:\s*[0-9a-f-]{36}/.test(h), sessionCodex: (h.match(/session id:\s*([0-9a-f-]{36})/) || [])[1] || null, lanceParBureau: /^lance_par=bureau/m.test(h),
       verdict: verdict(rapport), aRapport: !!rapport,
     });
   }
@@ -432,7 +438,9 @@ function etat() {
   const maintenant = Date.now();
   const codex = agentsCodex(maintenant);
   const claude = agentsClaude(maintenant);
-  const travaux = [...codex.travaux, ...claude.agents].sort((a, b) => (b.debut || 0) - (a.debut || 0));
+  // Une conversation déjà suivie par son journal codex-run.sh n'est pas comptée une seconde fois.
+  const natifs = codexLocal.travaux(maintenant, new Set(codex.travaux.map(t => t.sessionCodex).filter(Boolean)));
+  const travaux = [...codex.travaux, ...natifs, ...claude.agents].sort((a, b) => (b.debut || 0) - (a.debut || 0));
   return {
     genereA: maintenant, poste: os.hostname(), travaux, sessions: claude.sessions, quota: codex.quota,
     machine: { charge: os.loadavg().map(x => Math.round(x * 10) / 10), coeurs: os.cpus().length, batterie: batterie() },
@@ -496,6 +504,7 @@ http.createServer((req, res) => {
     if (url.pathname === '/api/rapport' || url.pathname === '/api/journal') {
       const nom = url.searchParams.get('nom') || '', vue = url.pathname.slice(5);
       if (!nomValide(nom)) return texte(res, 400, '');
+      if (nom.startsWith('codex-local:')) { const t = codexLocal.contenu(nom, vue); return texte(res, t ? 200 : 404, t || 'Pas encore de rapport final.'); }
       if (/^(claude|session):/.test(nom)) { const t = texteClaude(nom, vue); return texte(res, t ? 200 : 404, t || ''); }
       const dir = dossiersCodex.get(nom); if (!dir) return texte(res, 404, '');
       if (vue === 'rapport') { const r = lireSur(path.join(dir, `${nom}.last.md`)); return texte(res, r ? 200 : 404, r || 'Pas encore de rapport final.'); }
@@ -505,6 +514,7 @@ http.createServer((req, res) => {
     if (url.pathname === '/api/consigne') {
       const nom = url.searchParams.get('nom') || '';
       if (!nomValide(nom)) return texte(res, 400, '');
+      if (nom.startsWith('codex-local:')) { const t = codexLocal.contenu(nom, 'consigne'); return texte(res, t ? 200 : 404, t || 'Consigne introuvable.'); }
       if (/^claude:/.test(nom)) { const t = fichiersClaude.get(nom) && premiereConsigne(fichiersClaude.get(nom)); return texte(res, t ? 200 : 404, t || 'Consigne introuvable.'); }
       if (/^session:/.test(nom)) { const f = fichiersClaude.get(nom), r = f && lireTranscript(f, fs.statSync(f)); return texte(res, r?.demande ? 200 : 404, r?.demande ? 'Dernière demande du propriétaire :\n\n' + r.demande : 'Aucune demande trouvée.'); }
       const f = consignesCodex.get(nom) || consigneIndexee(nom);

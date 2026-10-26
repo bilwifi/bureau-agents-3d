@@ -53,7 +53,7 @@ export function creerMonde({ ICI, CONFIG }) {
   // Lignée : même agent, même rôle, même lot. La correction appartient au producteur du lot ;
   // l'intégration suit la famille de lots (pilote-27, pilote-28… → un seul intégrateur).
   function ligneeDe(t) {
-    if (t.session) return null;
+    if (t.session || t.origine === 'codex-local') return null; // conversations natives : ni rôle ni lot ni verdict, donc pas de carrière
     const role = t.role === 'correction' ? 'production' : t.role;
     const lot = role === 'integration' ? String(t.lot).replace(/-\d+$/, '') : t.lot;
     return `${t.agent === 'claude' ? 'claude' : 'codex'}:${role}:${lot}`;
@@ -205,6 +205,7 @@ export function creerMonde({ ICI, CONFIG }) {
   // Processus des campagnes d'essais : un agent dont un campaign-lock.sh tourne sans détenir de place attend une place.
   let cachePs = { date: 0, procs: new Map() };
   function processus() {
+    if (process.platform === 'win32') return new Map();
     if (Date.now() - cachePs.date < 3000) return cachePs.procs;
     const procs = new Map();
     try {

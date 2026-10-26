@@ -8,7 +8,8 @@
   "engines": { "node": ">=20" },
   "scripts": {
     "start": "node serveur.mjs",
-    "check": "node --check serveur.mjs"
+    "check": "node --check serveur.mjs && node --check codex-local.mjs && node --check monde.mjs",
+    "test": "node --test test/*.test.mjs"
   },
   "dependencies": {
     "three": "0.160.0"
