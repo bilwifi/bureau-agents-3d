@@ -205,6 +205,7 @@ export function creerMonde({ ICI, CONFIG }) {
   // Processus des campagnes d'essais : un agent dont un campaign-lock.sh tourne sans détenir de place attend une place.
   let cachePs = { date: 0, procs: new Map() };
   function processus() {
+    if (process.platform === 'win32') return new Map();
     if (Date.now() - cachePs.date < 3000) return cachePs.procs;
     const procs = new Map();
     try {

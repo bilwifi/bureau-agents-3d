@@ -3,6 +3,7 @@
 Vue en direct, dans un bureau 3D, des agents qui travaillent sur ce poste :
 
 - **agents Codex** lancés par `codex-run.sh` (production, correction, revue, intégration, diagnostic) ;
+- **sessions locales Codex Desktop et CLI**, y compris sous Windows, lues dans les fichiers `sessions/**/*.jsonl` de Codex ;
 - **sous-agents Claude** (relectures, analyses, plans) ;
 - **sessions Claude** (superviseurs), assises au pupitre de supervision.
 
@@ -29,6 +30,38 @@ npm start          # http://127.0.0.1:4317
 
 Node 20 ou plus. Aucune autre dépendance. La météo est le seul appel réseau du serveur (désactivable).
 
+### Windows et Codex Desktop
+
+Le serveur détecte aussi les conversations enregistrées localement par Codex Desktop/CLI.
+Le dossier par défaut est `%USERPROFILE%\.codex\sessions`, ou `sessions` sous
+`CODEX_HOME` si cette variable est définie. Aucun script `codex-run.sh` n'est nécessaire
+pour ces conversations. Pour un autre emplacement, ajouter dans `config.json` :
+
+```json
+{
+  "codexSessions": ["C:/Users/votre-nom/.codex/sessions"],
+  "actions": false
+}
+```
+
+Lancer `npm install` puis `npm start` depuis PowerShell avec Node 20 ou plus.
+Les chemins Windows absolus et les motifs avec `~` sont acceptés dans la configuration.
+Pour désactiver la lecture native : `"codexSessions": []`.
+
+Les événements du journal indiquent le début, la fin et l'interruption des tours.
+Un tour sans activité pendant `silenceMinutes` est affiché comme silencieux ; cela ne
+prouve pas que son processus tourne toujours. Modifier un réglage de conversation ne
+la rend pas active. Les titres viennent de `session_index.jsonl` lorsqu'il existe.
+La fiche affiche la dernière consigne, le dernier message, l'outil récent et le rapport
+final disponible ; l'onglet Journal présente ce résumé, sans charger le transcript complet.
+Les gros fichiers sont lus par blocs bornés, puis seuls les ajouts sont analysés.
+
+Cette intégration lit uniquement les fichiers de sessions locales et leur index, sans
+modifier Codex ni lire ses identifiants de connexion. Les conversations distantes sans
+journal local ne sont pas visibles. Les actions sur les sessions natives ne sont pas
+prises en charge ; les lanceurs et la détection de campagnes Unix restent propres aux
+agents lancés par scripts. Le format des journaux Codex peut évoluer.
+
 ## Configuration
 
 Les valeurs par défaut conviennent à un poste qui utilise le kit superviseur J-napps. Pour un autre poste, copier `config.example.json` en `config.json` (ignoré par git) et ajuster :
@@ -40,6 +73,7 @@ Les valeurs par défaut conviennent à un poste qui utilise le kit superviseur J
 | `consignes` | dossiers où chercher les consignes `<nom>.prompt` ou `<nom>.md` | scratchpads Claude |
 | `claudeProjects` | dossiers de projets Claude Code | `~/.claude/projects/*` |
 | `claudeProjectFilter` | expression régulière pour ne garder que certains projets | aucun filtre |
+| `codexSessions` | dossiers des journaux natifs Codex Desktop/CLI (lecture récursive, `[]` pour désactiver) | `CODEX_HOME/sessions` ou `~/.codex/sessions` |
 | `campaignLock` | préfixe des verrous de campagne (bancs d'essais) | `/tmp/jnapps-campaign.lock` |
 | `placesMax` | nombre de places d'essais | `6` |
 | `silenceMinutes` | délai sans écriture avant « silencieux » | `15` |

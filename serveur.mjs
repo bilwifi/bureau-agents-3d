@@ -9,6 +9,7 @@ import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { creerActions, JETON } from './actions.mjs';
 import { creerMonde } from './monde.mjs';
+import { creerLecteurCodex } from './codex-local.mjs';
 
 const ICI = path.dirname(fileURLToPath(import.meta.url));
 
@@ -20,6 +21,7 @@ const DEFAUT = {
   consignes: ['/private/tmp/claude-*/*/*/scratchpad', '/private/tmp/claude-*/*/*/scratchpad/codex'],
   claudeProjects: ['~/.claude/projects/*'],
   claudeProjectFilter: null,
+  codexSessions: [path.join(process.env.CODEX_HOME || path.join(os.homedir(), '.codex'), 'sessions')],
   campaignLock: '/tmp/jnapps-campaign.lock',
   placesMax: 6,
   silenceMinutes: 15,
@@ -51,12 +53,14 @@ const CONFIG = (() => {
   return c;
 })();
 const FENETRE = CONFIG.fenetreHeures * 3600_000;
+const codexLocal = creerLecteurCodex({ racines: CONFIG.codexSessions, fenetreHeures: CONFIG.fenetreHeures, silenceMinutes: CONFIG.silenceMinutes });
 
 // Développe un motif simple : `~` et `*` par segment de chemin.
 function developper(motif) {
-  const abs = motif.replace(/^~(?=\/|$)/, os.homedir());
-  let courants = [abs.startsWith('/') ? '/' : ''];
-  for (const seg of abs.split('/').filter(Boolean)) {
+  const abs = path.resolve(motif.replace(/^~(?=\/|$)/, os.homedir()));
+  const racine = path.parse(abs).root;
+  let courants = [racine];
+  for (const seg of abs.slice(racine.length).split(/[\\/]/).filter(Boolean)) {
     const suivants = [];
     for (const base of courants) {
       if (!seg.includes('*')) { suivants.push(path.join(base, seg)); continue; }
@@ -119,6 +123,7 @@ function etimeEnSec(e) {
 }
 function travauxVivants() {
   const vivants = new Map();
+  if (process.platform === 'win32') return vivants; // Les sessions natives sont suivies par leurs événements.
   try {
     const ps = execFileSync('ps', ['-axo', 'pid=,etime=,command='], { encoding: 'utf8', maxBuffer: 1 << 24 });
     for (const ligne of ps.split('\n')) {
@@ -432,7 +437,8 @@ function etat() {
   const maintenant = Date.now();
   const codex = agentsCodex(maintenant);
   const claude = agentsClaude(maintenant);
-  const travaux = [...codex.travaux, ...claude.agents].sort((a, b) => (b.debut || 0) - (a.debut || 0));
+  const natifs = codexLocal.travaux(maintenant);
+  const travaux = [...codex.travaux, ...natifs, ...claude.agents].sort((a, b) => (b.debut || 0) - (a.debut || 0));
   return {
     genereA: maintenant, poste: os.hostname(), travaux, sessions: claude.sessions, quota: codex.quota,
     machine: { charge: os.loadavg().map(x => Math.round(x * 10) / 10), coeurs: os.cpus().length, batterie: batterie() },
@@ -496,6 +502,7 @@ http.createServer((req, res) => {
     if (url.pathname === '/api/rapport' || url.pathname === '/api/journal') {
       const nom = url.searchParams.get('nom') || '', vue = url.pathname.slice(5);
       if (!nomValide(nom)) return texte(res, 400, '');
+      if (nom.startsWith('codex-local:')) { const t = codexLocal.contenu(nom, vue); return texte(res, t ? 200 : 404, t || 'Pas encore de rapport final.'); }
       if (/^(claude|session):/.test(nom)) { const t = texteClaude(nom, vue); return texte(res, t ? 200 : 404, t || ''); }
       const dir = dossiersCodex.get(nom); if (!dir) return texte(res, 404, '');
       if (vue === 'rapport') { const r = lireSur(path.join(dir, `${nom}.last.md`)); return texte(res, r ? 200 : 404, r || 'Pas encore de rapport final.'); }
@@ -505,6 +512,7 @@ http.createServer((req, res) => {
     if (url.pathname === '/api/consigne') {
       const nom = url.searchParams.get('nom') || '';
       if (!nomValide(nom)) return texte(res, 400, '');
+      if (nom.startsWith('codex-local:')) { const t = codexLocal.contenu(nom, 'consigne'); return texte(res, t ? 200 : 404, t || 'Consigne introuvable.'); }
       if (/^claude:/.test(nom)) { const t = fichiersClaude.get(nom) && premiereConsigne(fichiersClaude.get(nom)); return texte(res, t ? 200 : 404, t || 'Consigne introuvable.'); }
       if (/^session:/.test(nom)) { const f = fichiersClaude.get(nom), r = f && lireTranscript(f, fs.statSync(f)); return texte(res, r?.demande ? 200 : 404, r?.demande ? 'Dernière demande du propriétaire :\n\n' + r.demande : 'Aucune demande trouvée.'); }
       const f = consignesCodex.get(nom) || consigneIndexee(nom);
