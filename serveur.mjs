@@ -8,6 +8,7 @@ import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { creerActions, JETON } from './actions.mjs';
+import { creerMonde } from './monde.mjs';
 
 const ICI = path.dirname(fileURLToPath(import.meta.url));
 
@@ -432,6 +433,7 @@ function etat() {
 
 // ---------- Actions ----------
 const actions = creerActions({ ICI, CONFIG, dossierCodex: n => dossiersCodex.get(n), fichierClaude: n => fichiersClaude.get(n) });
+const monde = creerMonde({ ICI, CONFIG });
 const HOTES = new Set([`127.0.0.1:${CONFIG.port}`, `localhost:${CONFIG.port}`, `[::1]:${CONFIG.port}`]);
 function autorise(req) {
   if (!CONFIG.actions) return 'actions désactivées sur ce poste';
@@ -475,7 +477,8 @@ http.createServer((req, res) => {
   const url = new URL(req.url, 'http://x');
   try {
     if (url.pathname.startsWith('/api/action/')) return void action(req, res, url);
-    if (url.pathname === '/api/etat') return texte(res, 200, JSON.stringify({ ...etat(), actions: !!CONFIG.actions, codexRun: !!CONFIG.codexRun }), 'application/json; charset=utf-8');
+    if (url.pathname === '/api/etat') { const e = etat(); return texte(res, 200, JSON.stringify({ ...e, monde: monde.enrichir(e), actions: !!CONFIG.actions, codexRun: !!CONFIG.codexRun }), 'application/json; charset=utf-8'); }
+    if (url.pathname === '/api/carriere') { const c = monde.carriere(url.searchParams.get('id') || ''); return texte(res, c ? 200 : 404, JSON.stringify(c), 'application/json; charset=utf-8'); }
     if (url.pathname === '/api/questions') { const nom = url.searchParams.get('nom') || ''; return texte(res, 200, JSON.stringify(nomValide(nom) ? actions.questionsDe(nom) : []), 'application/json; charset=utf-8'); }
     if (url.pathname === '/api/rapport' || url.pathname === '/api/journal') {
       const nom = url.searchParams.get('nom') || '', vue = url.pathname.slice(5);

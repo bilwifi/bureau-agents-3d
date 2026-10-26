@@ -74,9 +74,25 @@ Clic sur un robot (ou sur une ligne du fil d'événements) : sa fiche s'ouvre av
 
 Clés de configuration propres aux actions : `actions`, `codexModel`, `codexBin`, `claudeBin` (détectés sinon), `depot` (dossier de travail des missions), `codexRun` (script de lancement du poste).
 
+## Le monde des agents
+
+Le bureau 3D est aussi un petit monde où les agents ont une vie. **Règle : tout ce qui s'y passe correspond à un fait réel lu par le serveur** (journaux `codex-run.sh`, transcripts Claude, processus, verrous de campagne, verdicts). Aucun modèle d'IA n'anime le monde ; seuls les petits mouvements d'attente (regarder autour de soi, cligner des yeux…) sont décoratifs. Le calcul est fait par `monde.mjs`.
+
+### Personnages et progression
+
+- **Lignée** : un personnage = un même agent (Codex ou Claude), un même rôle, un même lot. Le producteur de `hub-h1-2` de r1 à r6 est un seul personnage ; la correction appartient au producteur du lot ; le relecteur du même lot est un autre personnage. Les intégrations suivent la famille de lots (`pilote-27`, `pilote-28`… → un seul intégrateur).
+- **Identité stable** tirée du nom de la lignée : prénom, couleur, accessoire (casquette, écharpe, lunettes, nœud, casque, fleur, chapeau, sac) et trait de caractère.
+- **Expérience** calculée sur les vrais verdicts : travail terminé +10 (arrêté avant la fin +3), version livrée +5, point relevé en revue +5 (bloquant +15, plafond 30), revue qui approuve +10, lot approuvé +30 pour son producteur (+50 du premier coup), intégration qualifiée +40. Niveaux : 50, 150, 300, 500 XP… (Apprenti, Compagnon, Artisan, Expert, Maître, Légende).
+- **Badges** : 🎯 Du premier coup, ✅ Approuvé, 🧗 Persévérant (six tours sur un lot), 🦉 Œil de lynx (point bloquant trouvé), 🛡️ Gardien (dix points relevés), 🧱 Bâtisseur (dix versions livrées), 🔗 Assembleur (trois intégrations qualifiées), ⚡ Infatigable (quatre travaux le même jour), 🌙 Noctambule.
+- **Fiche carrière** : onglet *Carrière* du tiroir (historique, taux d'approbation, spécialités par lot et par domaine, badges, progression).
+- **Mur des trophées** (bouton 🏆 ou touche `R`, ou clic sur le panneau devant la porte) et **employé de la semaine** (le plus d'XP sur 7 jours, couronne dorée).
+- **Mémoire** : `donnees/monde.json` (ignoré par git) garde chaque travail vu, même au-delà de la fenêtre de 48 h, et les prénoms attribués. On peut le supprimer : il se reconstruit à partir des journaux encore présents.
+
+`/api/carriere?id=<lignée>` renvoie la fiche carrière en JSON ; `/api/etat` contient la clé `monde`.
+
 ## Commandes du bureau 3D
 
-Glisser : tourner · molette : zoom · double-clic : recentrer · clic sur un robot : consigne, rapport, journal, questions et actions · `M` : nouvelle mission · `L` : tâches affichées ou non · `T` : caméra automatique · `N` : jour / nuit · `Échap` : fermer.
+Glisser : tourner · molette : zoom · double-clic : recentrer · clic sur un robot : consigne, rapport, journal, questions et actions · `M` : nouvelle mission · `L` : tâches affichées ou non · `R` : mur des trophées · `T` : caméra automatique · `N` : jour / nuit · `Échap` : fermer.
 
 ## Confidentialité
 
