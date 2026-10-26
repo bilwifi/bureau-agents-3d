@@ -21,5 +21,7 @@
   "codexBin": null,
   "claudeBin": null,
   "depot": null,
-  "codexRun": null
+  "codexRun": null,
+  "maisonsMax": 14,
+  "longueCommandeMinutes": 5
 }

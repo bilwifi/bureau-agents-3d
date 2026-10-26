@@ -195,7 +195,7 @@ const ROLE = {
   revue: { c: 0xffb347, nom: 'Revue' }, integration: { c: 0x4ff0a0, nom: 'Intégration' },
   diagnostic: { c: 0x9aa1b8, nom: 'Diagnostic' }, analyse: { c: 0x9aa1b8, nom: 'Analyse' },
 };
-const CLAUDE = 0xe8845c, COULOIR = 2.6, PORTE = new THREE.Vector3(0, 0, 10);
+const CLAUDE = 0xe8845c, COULOIR = 2.6;
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const duree = ms => { const m = Math.max(0, Math.round(ms / 60000)); if (m < 60) return m + ' min'; return Math.floor(m / 60) + ' h ' + String(m % 60).padStart(2, '0'); };
 
@@ -217,20 +217,21 @@ hote.appendChild(etiquettes.domElement);
 const scene = new THREE.Scene();
 const pmrem = new THREE.PMREMGenerator(renderer);
 scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
-scene.fog = new THREE.Fog(0x07080d, 38, 70);
+scene.fog = new THREE.Fog(0x07080d, 70, 140);
 
 const vue = 13;
 const asp = () => innerWidth / innerHeight;
 const camera = new THREE.OrthographicCamera(-vue * asp(), vue * asp(), vue, -vue, 0.1, 200);
-const CAM_DEPART = new THREE.Vector3(22, 20, 24);
+const CAM_DECALAGE = new THREE.Vector3(22, 20, 24), CAM_CIBLE = new THREE.Vector3(1, 0.5, 7), CAM_ZOOM = () => innerWidth < 760 ? 0.42 : 0.62;
+const CAM_DEPART = CAM_CIBLE.clone().add(CAM_DECALAGE);
 camera.position.copy(CAM_DEPART);
-camera.zoom = innerWidth < 760 ? 0.7 : 0.95;
+camera.zoom = CAM_ZOOM();
 camera.updateProjectionMatrix();
 const controles = new OrbitControls(camera, renderer.domElement);
-controles.target.set(-1, 0.5, 0.3);
+controles.target.copy(CAM_CIBLE);
 controles.enableDamping = true; controles.dampingFactor = 0.06;
 controles.minPolarAngle = 0.35; controles.maxPolarAngle = 1.25;
-controles.minZoom = 0.5; controles.maxZoom = 3.5;
+controles.minZoom = 0.3; controles.maxZoom = 3.5;
 controles.autoRotateSpeed = 0.35;
 
 const composer = new EffectComposer(renderer);
@@ -251,7 +252,8 @@ const soleil = new THREE.DirectionalLight(0xfff1dc, 2.2);
 soleil.position.set(-10, 18, 8);
 soleil.castShadow = true;
 soleil.shadow.mapSize.set(2048, 2048);
-Object.assign(soleil.shadow.camera, { left: -16, right: 16, top: 14, bottom: -14, near: 1, far: 50 });
+soleil.target.position.set(0, 0, 8); scene.add(soleil.target);
+Object.assign(soleil.shadow.camera, { left: -34, right: 34, top: 30, bottom: -30, near: 1, far: 80 });
 soleil.shadow.bias = -0.0004; soleil.shadow.radius = 4;
 scene.add(soleil);
 
@@ -281,6 +283,10 @@ const ZONES = [
   { x: 0.4, z: -3.6, w: 6.0, d: 7.6, c: 0xffb347, nom: 'SALLE DE REVUE' },
   { x: 7.9, z: -3.6, w: 7.6, d: 7.6, c: 0x4ff0a0, nom: 'INTÉGRATION' },
   { x: -6.5, z: 5.2, w: 7.5, d: 3.6, c: 0xe8845c, nom: 'SUPERVISION' },
+  { x: 19.5, z: -5, w: 9, d: 7, c: 0xff8fb1, nom: 'CAFÉ' },
+  { x: 19.5, z: 4.6, w: 9, d: 7.6, c: 0x9b8cff, nom: 'BIBLIOTHÈQUE' },
+  { x: -22, z: 0, w: 9, d: 15, c: 0x7fd17f, nom: 'JARDIN' },
+  { x: 0, z: 18, w: 11, d: 7, c: 0xffd35c, nom: 'PLACE DES FÊTES' },
 ];
 const liseres = [];
 for (const z of ZONES) {
@@ -400,7 +406,7 @@ const porteMat = lueur(0x7ab8ff, 1.2);
 // mur des trophées (employé de la semaine + derniers badges)
 const tropheesCanvas = document.createElement('canvas'); tropheesCanvas.width = 1024; tropheesCanvas.height = 640;
 const tropheesTex = new THREE.CanvasTexture(tropheesCanvas); tropheesTex.colorSpace = THREE.SRGBColorSpace; tropheesTex.anisotropy = 8;
-const MUR_TROPHEES = new THREE.Group(); MUR_TROPHEES.position.set(5.2, 0, 12.2); MUR_TROPHEES.rotation.y = -0.25; scene.add(MUR_TROPHEES);
+const MUR_TROPHEES = new THREE.Group(); MUR_TROPHEES.position.set(-8.6, 0, 16.4); MUR_TROPHEES.rotation.y = 0.55; scene.add(MUR_TROPHEES);
 { for (const x of [-2.1, 2.1]) boite(0.14, 3.3, 0.14, MAT.boisFonce, x, 1.65, 0, MUR_TROPHEES);
   boite(4.4, 2.8, 0.1, MAT.noir, 0, 1.95, -0.02, MUR_TROPHEES);
   const p = new THREE.Mesh(new THREE.PlaneGeometry(4.2, 2.62), new THREE.MeshBasicMaterial({ map: tropheesTex, toneMapped: false })); p.position.set(0, 1.95, 0.04); MUR_TROPHEES.add(p);
@@ -430,7 +436,83 @@ const poussiere = (() => {
   g.setAttribute('position', new THREE.BufferAttribute(p, 3));
   const pts = new THREE.Points(g, new THREE.PointsMaterial({ size: 0.04, color: 0xfff0d0, transparent: true, opacity: 0.45, depthWrite: false })); scene.add(pts); return pts;
 })();
-const PLACES = { atelier: BUREAUX.map(b => b.place), revue: PLACES_REVUE, labo: PLACES_LABO, supervision: PLACES_SUPERVISION, attente: ATTENTE };
+// ================= Campus : chemins et lieux de vie =================
+// Dehors, on circule par l'avenue (z = AVENUE) ; chaque lieu a son allée (x) qui y mène.
+const AVENUE = 13.2;
+const PORTAIL = { x: 4.5, z: 30, allee: 4.5, dehors: true, zone: 'portail', face: Math.PI };
+const estDehors = p => p.z > 9.8 || p.x > 13.2 || p.x < -13.2;
+const gazon = new THREE.Mesh(new THREE.PlaneGeometry(66, 52), M(0x1d3125, { roughness: 0.95 }));
+gazon.rotation.x = -Math.PI / 2; gazon.position.set(-1, -0.02, 8); gazon.receiveShadow = true; scene.add(gazon);
+const MAT_CHEMIN = M(0x3b3c48, { roughness: 0.92 });
+const chemin = (x1, z1, x2, z2, l = 1.3) => boite(Math.abs(x2 - x1) || l, 0.03, Math.abs(z2 - z1) || l, MAT_CHEMIN, (x1 + x2) / 2, 0, (z1 + z2) / 2, scene, false);
+chemin(-26, AVENUE, 27, AVENUE, 1.6); chemin(0, 9.8, 0, AVENUE); chemin(19.5, -8, 19.5, AVENUE); chemin(-22, -4.5, -22, AVENUE); chemin(4.5, AVENUE, 4.5, 30);
+const lampadaires = [];
+for (const x of [-18, -9, 9, 18]) { boite(0.1, 2.6, 0.1, MAT.metal, x, 1.3, AVENUE - 1.1, scene, false); const m = lueur(0xffd9a0, 0.2); const b = new THREE.Mesh(new THREE.SphereGeometry(0.18, 12, 10), m); b.position.set(x, 2.7, AVENUE - 1.1); scene.add(b); lampadaires.push(m); }
+function arbre(x, z, s = 1) {
+  const g = new THREE.Group(); g.position.set(x, 0, z); g.scale.setScalar(s); scene.add(g);
+  const tronc = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.2, 1.4, 8), MAT.boisFonce); tronc.position.y = 0.7; tronc.castShadow = true; g.add(tronc);
+  for (const [dx, dy, dz, r] of [[0, 1.9, 0, 0.9], [0.4, 1.5, 0.2, 0.6], [-0.35, 1.6, -0.2, 0.65]]) { const f = new THREE.Mesh(new THREE.IcosahedronGeometry(r, 0), M(0x2f8f5b, { roughness: 0.8 })); f.position.set(dx, dy, dz); f.castShadow = true; g.add(f); }
+}
+// ----- Café / salle de pause : comptoir, baby-foot, ping-pong -----
+const PLACES_CAFE = [];
+const BABYFOOT = { x: 17, z: -4.2 }, PINGPONG = { x: 22.2, z: -4.3 };
+const tiges = [];
+{ boite(4.2, 1.0, 0.7, MAT.boisFonce, 19.5, 0.5, -8.0); boite(4.4, 0.06, 0.85, MAT.bois, 19.5, 1.03, -8.0);
+  boite(0.5, 0.6, 0.4, MAT.metal, 18.0, 1.36, -8.1); boite(0.3, 0.05, 0.2, lueur(0xff8fb1, 1.2), 18.0, 1.5, -7.89, scene, false);
+  boite(1.5, 0.25, 0.9, M(0x2f7d4f), BABYFOOT.x, 0.82, BABYFOOT.z); for (const [dx, dz] of [[-0.65, -0.35], [0.65, -0.35], [-0.65, 0.35], [0.65, 0.35]]) boite(0.08, 0.7, 0.08, MAT.metal, BABYFOOT.x + dx, 0.35, BABYFOOT.z + dz, scene, false);
+  for (let i = 0; i < 4; i++) { const g = new THREE.Group(); g.position.set(BABYFOOT.x - 0.5 + i * 0.33, 1.0, BABYFOOT.z); scene.add(g); const t = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 1.5, 6), MAT.metal); t.rotation.x = Math.PI / 2; g.add(t); for (const dz of [-0.2, 0.2]) { const j = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.16, 0.06), M(i % 2 ? 0xd9534f : 0x5b8cff)); j.position.set(0, -0.08, dz); g.add(j); } tiges.push(g); }
+  boite(1.5, 0.05, 2.7, M(0x1f5fa8), PINGPONG.x, 0.76, PINGPONG.z); boite(1.6, 0.14, 0.03, MAT.blanc, PINGPONG.x, 0.85, PINGPONG.z, scene, false);
+  for (const [dx, dz] of [[-0.6, -1.1], [0.6, -1.1], [-0.6, 1.1], [0.6, 1.1]]) boite(0.07, 0.74, 0.07, MAT.metal, PINGPONG.x + dx, 0.37, PINGPONG.z + dz, scene, false);
+  PLACES_CAFE.push({ x: BABYFOOT.x, z: BABYFOOT.z - 0.95, face: 0, jeu: 'babyfoot' }, { x: BABYFOOT.x, z: BABYFOOT.z + 0.95, face: Math.PI, jeu: 'babyfoot' },
+    { x: PINGPONG.x, z: PINGPONG.z - 1.9, face: 0, jeu: 'pingpong' }, { x: PINGPONG.x, z: PINGPONG.z + 1.9, face: Math.PI, jeu: 'pingpong' });
+  for (const x of [18.2, 19.5, 20.8]) { boite(0.34, 0.06, 0.34, M(0xff8fb1), x, 0.7, -7.2); boite(0.06, 0.7, 0.06, MAT.metal, x, 0.35, -7.2, scene, false); PLACES_CAFE.push({ x, z: -6.85, face: Math.PI, jeu: 'bar' }); }
+  PLACES_CAFE.forEach(p => Object.assign(p, { allee: 19.5, dehors: true, zone: 'cafe' })); }
+const balle = new THREE.Mesh(new THREE.SphereGeometry(0.05, 10, 8), lueur(0xffffff, 1.5)); balle.visible = false; scene.add(balle);
+// ----- Bibliothèque : étagères et tables de lecture -----
+const PLACES_BIBLIO = [];
+{ for (let i = 0; i < 3; i++) { const z = 2.0 + i * 2.3; boite(0.5, 2.4, 2.0, MAT.boisFonce, 23.6, 1.2, z); for (let r = 0; r < 4; r++) for (let k = 0; k < 6; k++) boite(0.3, 0.38, 0.22, M(livres[(k + r + i) % 6]), 23.3, 0.35 + r * 0.55, z - 0.75 + k * 0.3, scene, false); }
+  for (const z of [3.0, 6.4]) {
+    const t = new THREE.Mesh(new THREE.CylinderGeometry(0.65, 0.65, 0.06, 24), MAT.bois); t.position.set(17.2, 0.76, z); t.castShadow = t.receiveShadow = true; scene.add(t);
+    boite(0.1, 0.74, 0.1, MAT.metal, 17.2, 0.37, z, scene, false);
+    const lampe = new THREE.Mesh(new THREE.SphereGeometry(0.1, 10, 8), lueur(0xffe2a8, 1.6)); lampe.position.set(17.2, 1.05, z); scene.add(lampe);
+    PLACES_BIBLIO.push({ x: 16.2, z, face: Math.PI / 2 }, { x: 18.2, z, face: -Math.PI / 2 });
+  }
+  PLACES_BIBLIO.push({ x: 21.6, z: 8.2, face: Math.PI / 2 }, { x: 21.6, z: 1.2, face: Math.PI / 2 });
+  PLACES_BIBLIO.forEach(p => Object.assign(p, { allee: 19.5, dehors: true, zone: 'bibliotheque' })); }
+// ----- Jardin : bancs, arbres, bassin -----
+const PLACES_JARDIN = [];
+{ for (const [x, z, s] of [[-25.8, -6.5, 1.2], [-18.4, -6.8, 1], [-26, 6.4, 1.1], [-18.2, 6.8, 1.25], [-26.2, 0.2, 0.9]]) arbre(x, z, s);
+  const bassin = new THREE.Mesh(new THREE.CylinderGeometry(1.3, 1.3, 0.12, 32), new THREE.MeshPhysicalMaterial({ color: 0x1d5a8a, roughness: 0.05, metalness: 0.1, clearcoat: 1 })); bassin.position.set(-22, 0.05, -6.3); scene.add(bassin);
+  for (let i = 0; i < 26; i++) { const a = i * 2.39, r = 2 + (i * 37 % 50) / 10; const f = new THREE.Mesh(new THREE.SphereGeometry(0.08, 6, 6), M([0xff8fb1, 0xffd35c, 0xffffff, 0xa77bff][i % 4])); f.position.set(-22 + Math.cos(a) * r * 0.9, 0.08, Math.sin(a) * r * 1.4); scene.add(f); }
+  for (const z of [-3.6, 0.4, 4.4]) for (const [x, face] of [[-19.6, -Math.PI / 2], [-24.4, Math.PI / 2]]) {
+    const dx = face < 0 ? 0.35 : -0.35;
+    boite(0.5, 0.07, 1.3, MAT.bois, x + dx, 0.45, z); boite(0.07, 0.45, 1.3, MAT.bois, x + dx * 2, 0.7, z); boite(0.4, 0.42, 0.07, MAT.metal, x + dx, 0.21, z - 0.55, scene, false); boite(0.4, 0.42, 0.07, MAT.metal, x + dx, 0.21, z + 0.55, scene, false);
+    PLACES_JARDIN.push({ x, z, face, allee: -22, dehors: true, zone: 'jardin' });
+  } }
+// ----- Place des fêtes : fontaine ; les résidents s'y retrouvent -----
+const PLACE_FETE = new THREE.Vector3(0, 0, 18);
+const PLACES_FETE = [];
+{ const pave = new THREE.Mesh(new THREE.CylinderGeometry(4.2, 4.2, 0.03, 48), M(0x34323c, { roughness: 0.9 })); pave.position.set(PLACE_FETE.x, 0.01, PLACE_FETE.z); pave.receiveShadow = true; scene.add(pave);
+  const vasque = new THREE.Mesh(new THREE.CylinderGeometry(1.2, 1.35, 0.45, 32), M(0x8a8478)); vasque.position.set(PLACE_FETE.x, 0.22, PLACE_FETE.z); vasque.castShadow = true; scene.add(vasque);
+  const eau = new THREE.Mesh(new THREE.CircleGeometry(1.05, 32), lueur(0x4fb3ff, 0.6)); eau.rotation.x = -Math.PI / 2; eau.position.set(PLACE_FETE.x, 0.46, PLACE_FETE.z); scene.add(eau);
+  boite(0.22, 1.1, 0.22, M(0x8a8478), PLACE_FETE.x, 0.8, PLACE_FETE.z);
+  for (let i = 0; i < 12; i++) { const a = i / 12 * Math.PI * 2, x = PLACE_FETE.x + Math.sin(a) * 2.6, z = PLACE_FETE.z + Math.cos(a) * 2.6; PLACES_FETE.push({ x, z, face: a + Math.PI, allee: x >= 0 ? 3.4 : -3.4, dehors: true, zone: 'fete' }); } }
+// ----- Maisons : les personnages sans travail y dorment ou bricolent -----
+const MAISONS = [];
+[-20, -13.5, -7, 11, 17.5, 24].forEach((x, i) => {
+  const g = new THREE.Group(); g.position.set(x, 0, 24); scene.add(g);
+  const murC = [0xd9c7a7, 0xc9d6df, 0xe3c4c4, 0xcfd8b8, 0xd8cbe6, 0xe6d6b0][i];
+  boite(3.2, 2.2, 2.6, M(murC, { roughness: 0.85 }), 0, 1.1, 0, g);
+  const toit = new THREE.Mesh(new THREE.ConeGeometry(2.55, 1.5, 4), M([0x9b4a3c, 0x3c5a9b, 0x6a3c9b, 0x3c8a5a, 0x9b6a3c, 0x8a3c5a][i], { roughness: 0.8 })); toit.position.y = 2.95; toit.rotation.y = Math.PI / 4; toit.scale.set(1, 1, 0.85); toit.castShadow = true; g.add(toit);
+  boite(0.7, 1.4, 0.06, MAT.boisFonce, 0, 0.7, 1.31, g, false);
+  const fen = lueur(0xffd9a0, 0.1); for (const dx of [-1.0, 1.0]) boite(0.6, 0.5, 0.06, fen, dx, 1.35, 1.31, g, false);
+  boite(0.9, 0.06, 0.5, MAT.bois, -1.9, 0.7, 2.0, g); boite(0.06, 0.68, 0.06, MAT.metal, -2.25, 0.34, 2.0, g, false); boite(0.06, 0.68, 0.06, MAT.metal, -1.55, 0.34, 2.0, g, false); // établi
+  chemin(x + 2.1, AVENUE, x + 2.1, 26.4); chemin(x - 1, 26.4, x + 2.1, 26.4);
+  const places = [{ x: x - 0.9, z: 26.4, face: 0 }, { x: x + 0.9, z: 26.4, face: 0 }, { x, z: 27.1, face: 0 }].map(p => ({ ...p, allee: x + 2.1, dehors: true, zone: 'maison', maison: i }));
+  MAISONS.push({ x, g, fenetre: fen, places, porte: { x, z: 25.4, allee: x + 2.1, dehors: true, zone: 'porte', face: Math.PI } });
+});
+{ const c = M(0x2b2f3d); boite(0.3, 3, 0.3, c, PORTAIL.x - 1.4, 1.5, PORTAIL.z); boite(0.3, 3, 0.3, c, PORTAIL.x + 1.4, 1.5, PORTAIL.z); boite(3.1, 0.3, 0.3, porteMat, PORTAIL.x, 3, PORTAIL.z, scene, false); }
+const PLACES = { atelier: BUREAUX.map(b => b.place), revue: PLACES_REVUE, labo: PLACES_LABO, supervision: PLACES_SUPERVISION, attente: ATTENTE, cafe: PLACES_CAFE, bibliotheque: PLACES_BIBLIO, jardin: PLACES_JARDIN, fete: PLACES_FETE };
 const zoneDe = role => role === 'revue' ? 'revue' : role === 'integration' ? 'labo' : 'atelier';
 
 // ================= Robots =================
@@ -446,6 +528,7 @@ function accessoire(rb, type, couleur) {
   else if (type === 'chapeau') { ajoute(new THREE.CylinderGeometry(0.34, 0.34, 0.025, 24), 0, 0.2, 0); ajoute(new THREE.CylinderGeometry(0.19, 0.21, 0.24, 20), 0, 0.33, 0); }
   else if (type === 'sac') { ajoute(new THREE.BoxGeometry(0.34, 0.36, 0.16), 0, 0.78, -0.33, rb.corps); }
 }
+const SANS_CLAVIER = new Set(['cafe', 'jardin', 'bibliotheque', 'maison', 'fete', 'porte', 'portail']);
 class Robot {
   constructor(nom, claude, role, perso = null) {
     this.nom = nom; this.claude = claude; this.perso = perso; this.lignee = perso?.id || null;
@@ -454,9 +537,9 @@ class Robot {
     this.corps = new THREE.Group(); this.g.add(this.corps);
     const peau = M(corpsC, { roughness: 0.55, metalness: 0.2, envMapIntensity: 0.5 });
     const torse = new THREE.Mesh(new THREE.CapsuleGeometry(0.28, 0.32, 8, 20), peau); torse.position.y = 0.72; this.corps.add(torse);
-    this.poitrine = lueur(roleC, 2.4);
+    this.poitrine = lueur(roleC, 2.4); this.ceintureMat = lueur(roleC, 1.4);
     const p = new THREE.Mesh(new THREE.CircleGeometry(0.09, 20), this.poitrine); p.position.set(0, 0.78, 0.275); this.corps.add(p);
-    const ceinture = new THREE.Mesh(new THREE.TorusGeometry(0.285, 0.035, 10, 32), lueur(roleC, 1.4)); ceinture.rotation.x = Math.PI / 2; ceinture.position.y = 0.56; this.corps.add(ceinture);
+    const ceinture = new THREE.Mesh(new THREE.TorusGeometry(0.285, 0.035, 10, 32), this.ceintureMat); ceinture.rotation.x = Math.PI / 2; ceinture.position.y = 0.56; this.corps.add(ceinture);
     this.tete = new THREE.Group(); this.tete.position.y = 1.22; this.corps.add(this.tete);
     const crane = new THREE.Mesh(new THREE.SphereGeometry(0.3, 28, 20), peau); crane.scale.set(1.15, 0.92, 1); this.tete.add(crane);
     const visiere = new THREE.Mesh(new THREE.SphereGeometry(0.255, 28, 16, -1.05, 2.1, 1.0, 1.15), MAT.verreSombre); visiere.scale.set(1.18, 0.9, 1.05); visiere.position.z = 0.03; this.tete.add(visiere);
@@ -482,13 +565,14 @@ class Robot {
     this.chemin = []; this.mode = 'assis'; this.alpha = 1; this.graine = Math.random() * 10; this.face = 0;
   }
   texte(t, cls = '') { if (this._t !== t + cls) { this._t = t + cls; this.bulleEl.innerHTML = t; this.bulleEl.className = 'bulle' + (this.claude ? ' claude' : '') + (cls ? ' ' + cls : ''); this.mesure = null; } }
+  couleurRole(role) { const c = (ROLE[role] || ROLE.analyse).c; this.poitrine.emissive.setHex(c); this.ceintureMat.emissive.setHex(c); this.halo.material.color.setHex(c); if (!this.claude) this.antenneMat.emissive.setHex(c); }
   placer(p) { this.g.position.set(p.x, 0, p.z); this.face = p.face ?? 0; this.g.rotation.y = this.face; }
   aller(pts) { this.chemin = pts.map(p => new THREE.Vector3(p.x, 0, p.z)); }
   maj(dt, t) {
     let bouge = false;
     if (this.chemin.length) {
       const c = this.chemin[0], d = c.clone().sub(this.g.position); d.y = 0;
-      const L = d.length(), v = 2.6 * dt;
+      const L = d.length(), v = (estDehors(this.g.position) ? 3.6 : 2.6) * dt;
       if (L < 0.02 || L <= v) { this.g.position.copy(c); this.chemin.shift(); }
       else { this.g.position.addScaledVector(d.normalize(), v); this.cible = Math.atan2(d.x, d.z); bouge = true; }
     }
@@ -498,8 +582,8 @@ class Robot {
     this.marche = bouge;
     const s = t * 0.001 + this.graine;
     const job = this.job || {};
-    const tape = !bouge && this.mode === 'assis' && job.statut === 'actif';
-    const dort = job.statut === 'silencieux' || job.statut === 'attente';
+    const tape = !bouge && this.mode === 'assis' && job.statut === 'actif' && !SANS_CLAVIER.has(this.place?.zone);
+    const dort = !bouge && (this.dortForce || job.statut === 'silencieux' || job.statut === 'attente');
     if (bouge) {
       this.corps.position.y = Math.abs(Math.sin(s * 11)) * 0.08;
       this.jambes[0].position.z = Math.sin(s * 11) * 0.1; this.jambes[1].position.z = -Math.sin(s * 11) * 0.1;
@@ -527,19 +611,39 @@ class Robot {
 
 // ================= Particules de fin =================
 const gerbes = [];
-function gerbe(pos, couleur) {
-  const n = 90, g = new THREE.BufferGeometry(), p = new Float32Array(n * 3), v = [];
-  for (let i = 0; i < n; i++) { p.set([pos.x, 1.6, pos.z], i * 3); v.push(new THREE.Vector3((Math.random() - .5) * 3, 2 + Math.random() * 3, (Math.random() - .5) * 3)); }
+function gerbe(pos, couleur, { y = 1.6, n = 90, force = 3, haut = 2, vie = 2.2, gravite = 5, taille = 5, sphere = false } = {}) {
+  const g = new THREE.BufferGeometry(), p = new Float32Array(n * 3), v = [];
+  for (let i = 0; i < n; i++) {
+    p.set([pos.x, y, pos.z], i * 3);
+    if (sphere) { const d = new THREE.Vector3(Math.random() - .5, Math.random() - .5, Math.random() - .5).normalize().multiplyScalar(force * (0.7 + Math.random() * 0.3)); v.push(d); }
+    else v.push(new THREE.Vector3((Math.random() - .5) * force, haut + Math.random() * 3, (Math.random() - .5) * force));
+  }
   g.setAttribute('position', new THREE.BufferAttribute(p, 3));
-  const m = new THREE.PointsMaterial({ color: couleur, size: 0.09, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false });
-  const pts = new THREE.Points(g, m); scene.add(pts); gerbes.push({ pts, v, vie: 2.2 });
+  const m = new THREE.PointsMaterial({ color: couleur, size: taille * Math.max(0.6, camera.zoom), sizeAttenuation: false, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false });
+  const pts = new THREE.Points(g, m); scene.add(pts); gerbes.push({ pts, v, vie, vie0: vie, gravite });
 }
 function majGerbes(dt) {
   for (const gb of [...gerbes]) {
     gb.vie -= dt; const a = gb.pts.geometry.attributes.position;
-    for (let i = 0; i < gb.v.length; i++) { gb.v[i].y -= 5 * dt; a.setXYZ(i, a.getX(i) + gb.v[i].x * dt, Math.max(0.02, a.getY(i) + gb.v[i].y * dt), a.getZ(i) + gb.v[i].z * dt); }
-    a.needsUpdate = true; gb.pts.material.opacity = Math.max(0, gb.vie / 2.2);
-    if (gb.vie <= 0) { scene.remove(gb.pts); gerbes.splice(gerbes.indexOf(gb), 1); }
+    for (let i = 0; i < gb.v.length; i++) { gb.v[i].y -= gb.gravite * dt; a.setXYZ(i, a.getX(i) + gb.v[i].x * dt, Math.max(0.02, a.getY(i) + gb.v[i].y * dt), a.getZ(i) + gb.v[i].z * dt); }
+    a.needsUpdate = true; gb.pts.material.opacity = Math.max(0, gb.vie / gb.vie0);
+    if (gb.vie <= 0) { scene.remove(gb.pts); gb.pts.geometry.dispose(); gb.pts.material.dispose(); gerbes.splice(gerbes.indexOf(gb), 1); }
+  }
+}
+// Fêtes : confettis (lot approuvé) et feu d'artifice (intégration qualifiée), sur la place des fêtes.
+const COULEURS_FETE = [0xff6b6b, 0xffd35c, 0x4ff0a0, 0x7ab8ff, 0xd58cf0, 0xff8fb1];
+function confettis(pos = PLACE_FETE) { COULEURS_FETE.forEach((c, i) => setTimeout(() => gerbe(pos, c, { y: 2.5, n: 60, force: 5, haut: 3, vie: 3.2, gravite: 3, taille: 7 }), i * 90)); }
+const fusees = [];
+function feuArtifice(n = 7) {
+  for (let i = 0; i < n; i++) setTimeout(() => {
+    const m = new THREE.Mesh(new THREE.SphereGeometry(0.08, 8, 6), lueur(0xfff1c0, 3)); m.position.set(PLACE_FETE.x + (Math.random() - .5) * 6, 0.5, PLACE_FETE.z + (Math.random() - .5) * 4); scene.add(m);
+    fusees.push({ m, vy: 9 + Math.random() * 3, c: COULEURS_FETE[i % COULEURS_FETE.length] });
+  }, i * 380);
+}
+function majFusees(dt) {
+  for (const f of [...fusees]) {
+    f.vy -= 6 * dt; f.m.position.y += f.vy * dt;
+    if (f.vy < 1.5) { gerbe(f.m.position, f.c, { y: f.m.position.y, n: 110, force: 4.5, vie: 2.0, gravite: 1.6, taille: 6, sphere: true }); scene.remove(f.m); f.m.geometry.dispose(); fusees.splice(fusees.indexOf(f), 1); }
   }
 }
 // feuille imprimée
@@ -555,9 +659,34 @@ function majFeuilles(dt) {
 // ================= Données → scène =================
 let donnees = null, premier = true;
 const robots = new Map(), occupees = new Set(), fil = [];
+const DEHORS = new Set(['jardin', 'bibliotheque', 'fete']);
 function prendrePlace(zone) {
-  for (const z of [zone, zone === 'supervision' ? null : 'atelier', 'attente'].filter(Boolean)) for (const p of PLACES[z]) if (!occupees.has(p)) { occupees.add(p); return p; }
+  const repli = zone === 'supervision' ? ['attente'] : DEHORS.has(zone) ? ['fete', 'attente'] : ['atelier', 'attente'];
+  for (const z of [zone, ...repli]) for (const p of PLACES[z] || []) if (!occupees.has(p)) { occupees.add(p); return p; }
   return ATTENTE[0];
+}
+// Maison attitrée (tirée du nom de la lignée), sinon la suivante qui a de la place.
+const hacher = s => { let h = 2166136261; for (const c of s) { h ^= c.codePointAt(0); h = Math.imul(h, 16777619); } return h >>> 0; };
+function placeMaison(lignee) {
+  const i0 = hacher(lignee) % MAISONS.length;
+  for (let k = 0; k < MAISONS.length; k++) for (const p of MAISONS[(i0 + k) % MAISONS.length].places) if (!occupees.has(p)) { occupees.add(p); return p; }
+  return prendrePlace('fete');
+}
+// Itinéraire : dans le bâtiment par le couloir, dehors par l'avenue et les allées.
+function itineraire(pos, place, cible) {
+  const dedans = !estDehors(pos);
+  if (dedans && !cible.dehors) return trajet(pos, place, cible);
+  const pts = dedans ? [...trajet(pos, place, { x: 0, z: COULOIR, couloirX: 0 }), { x: 0, z: 9.6 }, { x: 0, z: AVENUE }]
+    : [{ x: place?.dehors ? place.allee : pos.x, z: pos.z }, { x: place?.dehors ? place.allee : pos.x, z: AVENUE }];
+  if (cible.dehors) pts.push({ x: cible.allee, z: AVENUE }, { x: cible.allee, z: cible.z }, { x: cible.x, z: cible.z });
+  else pts.push({ x: 0, z: AVENUE }, { x: 0, z: 9.6 }, ...trajet({ x: 0, z: COULOIR }, null, cible));
+  return pts;
+}
+// Libère la place actuelle, prend la nouvelle (zone ou place précise) et s'y rend.
+function deplacer(rb, cible, mode) {
+  const avant = rb.place; if (avant) occupees.delete(avant);
+  rb.place = typeof cible === 'string' ? prendrePlace(cible) : (occupees.add(cible), cible);
+  rb.mode = mode; rb.aller(itineraire(rb.g.position, avant, rb.place));
 }
 function trajet(depuis, place, cible) {
   const pts = [];
@@ -611,27 +740,67 @@ function appliquer(s) {
   const vivants = s.travaux.filter(t => t.statut === 'actif' || t.statut === 'silencieux');
   const sessions = (s.sessions || []).slice(0, 4).map(x => ({ ...x, role: 'analyse', agent: 'claude', session: true }));
   const presents = new Map([...vivants, ...sessions].map(t => [t.nom, t]));
+  const m = s.monde || {}, lieux = m.lieux || {};
+  const zoneVoulue = t => t.session ? 'supervision' : ({ cafe: 'cafe', jardin: 'jardin', bibliotheque: 'bibliotheque' })[lieux[t.nom]?.lieu] || zoneDe(t.role);
   for (const [nom, t] of presents) {
     let rb = robots.get(nom);
+    const zv = zoneVoulue(t), nomP = persoDe(t)?.prenom;
     if (!rb) {
-      rb = new Robot(nom, t.agent === 'claude', t.role, t.session ? null : persoDe(t));
-      rb.place = prendrePlace(t.session ? 'supervision' : zoneDe(t.role));
-      if (premier || t.session) { rb.placer(rb.place); rb.mode = 'assis'; }
-      else { rb.g.position.copy(PORTE); rb.mode = 'entre'; rb.aller([{ x: 0, z: COULOIR }, ...trajet({ x: 0, z: COULOIR }, null, rb.place)]); noter(`<b>${esc(t.titre || nom)}</b> arrive · ${(ROLE[t.role] || ROLE.analyse).nom.toLowerCase()}${t.agent === 'claude' ? ' · Claude' : ''}`); }
+      const lignee = m.affectations?.[nom];
+      const ancien = lignee && [...robots.values()].find(r => r.estResident && r.lignee === lignee);
+      if (ancien) { // le personnage quitte sa maison (ou la salle de revue) pour ce nouveau travail
+        robots.delete(ancien.nom); rb = ancien; rb.nom = nom; rb.estResident = false; rb.reunion = null; rb.dortForce = false; rb.verdict = null; rb.alerte = false; rb.couleurRole(t.role);
+        rb.job = t; deplacer(rb, zv === 'cafe' ? 'fete' : zv, 'entre');
+        noter(`<b>${esc(nomP || t.titre || nom)}</b> part travailler · ${(ROLE[t.role] || ROLE.analyse).nom.toLowerCase()} ${esc(t.lot || '')}`, new Date(), nom);
+      } else {
+        rb = new Robot(nom, t.agent === 'claude', t.role, t.session ? null : persoDe(t));
+        if (premier || t.session) { rb.place = prendrePlace(zv === 'cafe' ? 'fete' : zv); rb.placer(rb.place); rb.mode = 'assis'; }
+        else { rb.place = PORTAIL; rb.placer(PORTAIL); rb.job = t; deplacer(rb, zv === 'cafe' ? 'fete' : zv, 'entre'); noter(`<b>${esc(nomP || t.titre || nom)}</b> arrive · ${(ROLE[t.role] || ROLE.analyse).nom.toLowerCase()}${t.agent === 'claude' ? ' · Claude' : ''}`, new Date(), nom); }
+      }
+      rb.zoneVoulue = zv;
       robots.set(nom, rb);
-    } else if (rb.job && rb.job.statut !== 'silencieux' && t.statut === 'silencieux') noter(`<b>${esc(t.titre || nom)}</b> n'écrit plus rien depuis ${duree(now - t.derniereEcriture)}`);
+    } else {
+      if (rb.job && rb.job.statut !== 'silencieux' && t.statut === 'silencieux') noter(`🌿 <b>${esc(nomP || t.titre || nom)}</b> n'écrit plus rien depuis ${duree(now - t.derniereEcriture)} : repos au jardin`, new Date(), nom);
+      // changement de lieu (attente d'une place, longue commande, silence…) : il s'y rend
+      if (rb.zoneVoulue !== zv && ['assis', 'entre', 'va'].includes(rb.mode)) {
+        if (zv === 'cafe') noter(`☕ <b>${esc(nomP || nom)}</b> ${esc(lieux[nom]?.raison || 'patiente')} : pause au café`, new Date(), nom);
+        rb.zoneVoulue = zv; if (zv !== 'cafe') deplacer(rb, zv, 'va');
+      }
+    }
     rb.job = t;
   }
+  // Café : les agents en attente jouent deux par deux (baby-foot, ping-pong) ; un agent seul prend un café au comptoir.
+  const auCafe = [...robots.values()].filter(r => !r.estResident && r.zoneVoulue === 'cafe' && presents.has(r.nom) && ['assis', 'entre', 'va'].includes(r.mode)).sort((a, b) => a.nom.localeCompare(b.nom));
+  const paires = Math.min(2, Math.floor(auCafe.length / 2)), bar = PLACES_CAFE.filter(p => p.jeu === 'bar');
+  auCafe.forEach((rb, i) => { const cible = i < paires * 2 ? PLACES_CAFE[i] : bar[(i - paires * 2) % bar.length];
+    if (rb.place === cible) return;
+    if (premier) { occupees.delete(rb.place); rb.place = cible; occupees.add(cible); rb.placer(cible); } else deplacer(rb, cible, 'va'); });
   for (const rb of robots.values()) if (rb.lignee) { rb.perso = s.monde?.personnages?.[rb.lignee] || rb.perso; rb.couronne.visible = s.monde?.employeSemaine?.lignee === rb.lignee; }
   for (const rb of robots.values()) {
-    if (presents.has(rb.nom) || ['vers-imprimante', 'imprime', 'sort'].includes(rb.mode)) continue;
+    if (rb.estResident || rb.proprio || presents.has(rb.nom) || ['vers-imprimante', 'imprime', 'sort'].includes(rb.mode)) continue;
     if (rb.job?.session) { occupees.delete(rb.place); rb.detruire(); robots.delete(rb.nom); continue; }
     const fin = s.travaux.find(t => t.nom === rb.nom); if (fin) rb.job = fin;
     rb.verdict = verdictCourt(rb.job); rb.alerte = rb.verdict.c === '#ff6b6b';
     occupees.delete(rb.place);
-    rb.aller(trajet(rb.g.position, rb.place, POSTE_IMPRIMANTE)); rb.mode = 'vers-imprimante';
-    noter(`<b>${esc(rb.job.titre || rb.nom)}</b> a terminé : <span style="color:${rb.verdict.c}">${esc(rb.verdict.txt)}</span>`, new Date(), rb.nom);
+    rb.aller(itineraire(rb.g.position, rb.place, POSTE_IMPRIMANTE)); rb.place = POSTE_IMPRIMANTE; rb.mode = 'vers-imprimante';
+    noter(`<b>${esc(rb.perso?.prenom || rb.job.titre || rb.nom)}</b> a terminé : <span style="color:${rb.verdict.c}">${esc(rb.verdict.txt)}</span>`, new Date(), rb.nom);
   }
+  // Résidents : personnages sans travail ; ils vivent dans les maisons, rejoignent la revue de leur lot.
+  const residents = new Set(m.residents || []), reunions = new Map((m.revues || []).map(r => [r.producteur, r]));
+  for (const l of residents) {
+    const p = m.personnages?.[l]; if (!p || [...robots.values()].some(r => r.lignee === l)) continue;
+    const rb = new Robot('perso:' + l, p.agent === 'claude', p.role, p); rb.estResident = true;
+    rb.place = placeMaison(l); rb.placer(rb.place); rb.mode = 'maison'; rb.job = { nom: rb.nom, statut: 'repos' };
+    robots.set(rb.nom, rb);
+  }
+  for (const rb of [...robots.values()]) {
+    if (!rb.estResident || ['rentre', 'sort'].includes(rb.mode)) continue;
+    const r = reunions.get(rb.lignee);
+    if (!residents.has(rb.lignee)) deplacer(rb, MAISONS[rb.place?.maison ?? hacher(rb.lignee) % MAISONS.length].porte, 'rentre');
+    else if (r && rb.reunion !== r.lot) { rb.reunion = r.lot; deplacer(rb, 'revue', 'vers-reunion'); noter(`🤝 <b>${esc(rb.perso?.prenom)}</b> rejoint son relecteur pour la revue de ${esc(r.lot)}`, new Date(), r.relecteur); }
+    else if (!r && rb.reunion) { rb.reunion = null; deplacer(rb, placeMaison(rb.lignee), 'vers-maison'); }
+  }
+  nouveauxEvenements(m);
   if (premier) {
     fil.length = 0;
     s.travaux.filter(t => t.fin && now - t.fin < 12 * 3600000).sort((a, b) => a.fin - b.fin).slice(-6).forEach(t => { const v = verdictCourt(t); noter(`<b>${esc(t.titre || t.nom)}</b> terminé : <span style="color:${v.c}">${esc(v.txt)}</span>`, new Date(t.fin), t.nom); });
@@ -652,6 +821,20 @@ function appliquer(s) {
   document.getElementById('maj').textContent = `en direct · ${new Date(now).toLocaleTimeString('fr-FR')} · charge ${s.machine.charge[0]}`;
   dessinerEcran(); dessinerTrophees();
   if ($('panneau').dataset.vue === 'trophees') panneauTrophees();
+}
+// Événements nouveaux depuis l'ouverture de la page : on fête les approbations et les intégrations qualifiées.
+const vus = new Set(); let evenementsPrets = false;
+function nouveauxEvenements(m) {
+  const neufs = [];
+  for (const e of m?.evenements || []) if (!vus.has(e.id)) { vus.add(e.id); if (evenementsPrets) neufs.push(e); }
+  evenementsPrets = true;
+  for (const e of neufs) celebrer(e);
+}
+function celebrer(e) {
+  const rb = e.lignee && [...robots.values()].find(r => r.lignee === e.lignee);
+  if (e.type === 'approbation') { confettis(); if (rb) { confettis(rb.g.position); rb.saut = performance.now(); } noter(`🎉 ${esc(e.texte)}`); }
+  else if (e.type === 'integration') { feuArtifice(); if (rb) rb.saut = performance.now(); noter(`🎆 ${esc(e.texte)}`); }
+  else if (e.type === 'badge' || e.type === 'niveau') { if (rb) gerbe(rb.g.position, 0xffd35c, { y: 2.2, n: 50, force: 1.5, vie: 1.6 }); noter(`🏅 ${esc(e.texte)}`); }
 }
 const persoDe = t => { const m = donnees?.monde, l = m?.affectations?.[t.nom]; return l ? m.personnages[l] || null : null; };
 
@@ -716,6 +899,33 @@ function ambiance() {
   document.getElementById('b-nuit').textContent = n ? '☀️ Jour' : '🌙 Nuit';
 }
 
+// Fin de passage à l'imprimante : le personnage rentre chez lui (s'il est résident) ou quitte le campus.
+function quitterTravail(rb) {
+  const l = rb.lignee;
+  if (l && donnees?.monde?.residents?.includes(l) && !robots.has('perso:' + l)) {
+    robots.delete(rb.nom); rb.nom = 'perso:' + l; rb.estResident = true; rb.job = { nom: rb.nom, statut: 'repos' }; rb.verdict = null; rb.alerte = false;
+    robots.set(rb.nom, rb); deplacer(rb, placeMaison(l), 'vers-maison');
+  } else deplacer(rb, PORTAIL, 'sort');
+}
+// Gestes propres à chaque lieu (le reste de l'animation est dans Robot.maj).
+function animerLieu(rb, t) {
+  const s = t * 0.001 + rb.graine, z = rb.place?.zone, B = rb.bras;
+  if (rb.saut && t - rb.saut < 2400) rb.corps.position.y = Math.abs(Math.sin((t - rb.saut) * 0.008)) * 0.35;
+  B[1].rotation.z = 0;
+  if (rb.chemin.length) return;
+  if (z === 'cafe' && rb.mode === 'assis') {
+    const jeu = rb.place.jeu, ensemble = jeu !== 'bar' && [...robots.values()].some(r => r !== rb && r.place?.jeu === jeu && !r.chemin.length);
+    if (jeu === 'babyfoot' && ensemble) { B[0].rotation.x = -1.3 + Math.sin(s * 9) * 0.25; B[1].rotation.x = -1.3 + Math.cos(s * 8) * 0.25; }
+    else if (jeu === 'pingpong' && ensemble) { const ph = (t * 0.0012) % 2, frappe = rb.place.z < PINGPONG.z ? ph < 0.25 : ph > 1 && ph < 1.25; B[1].rotation.x = frappe ? -1.6 : -0.6; B[1].rotation.z = frappe ? 0.4 : 0; }
+    else { const gorgee = Math.sin(s * 0.8) > 0.75; B[1].rotation.x += ((gorgee ? -2.2 : -0.3) - B[1].rotation.x) * 0.1; }
+  } else if (z === 'bibliotheque' && rb.mode === 'assis') { B[0].rotation.x = -0.95; B[1].rotation.x = -0.95; rb.tete.rotation.x = 0.3; rb.tete.rotation.y = Math.sin(s * 0.5) * 0.15; }
+  else if (rb.mode === 'maison' && !rb.dortForce) { B[1].rotation.x = -1.3 + Math.abs(Math.sin(s * 5)) * 0.8; rb.tete.rotation.x = 0.25; }
+  else if (rb.mode === 'reunion') { rb.tete.rotation.y = Math.sin(s * 0.9) * 0.3; }
+}
+// Caméra : glisse doucement vers un lieu (reprise en main dès qu'on touche la scène).
+let visee = null;
+function viser(x, z, zoom = 1.2) { visee = { cible: new THREE.Vector3(x, 0.5, z), zoom }; }
+renderer.domElement.addEventListener('pointerdown', () => { visee = null; });
 // ================= Boucle =================
 const horlogeJ = new THREE.Clock();
 let tEcran = 0;
@@ -725,16 +935,26 @@ function image() {
     rb.maj(dt, t);
     const j = rb.job || {};
     if (!rb.chemin.length) {
-      if (rb.mode === 'entre') { rb.mode = 'assis'; rb.face = rb.place.face ?? 0; }
+      if (rb.mode === 'entre' || rb.mode === 'va') { rb.mode = 'assis'; rb.face = rb.place.face ?? 0; }
       else if (rb.mode === 'vers-imprimante') { rb.mode = 'imprime'; rb.attente = t + 3800; rb.face = POSTE_IMPRIMANTE.face; imprimer(); gerbe(rb.g.position, new THREE.Color(rb.verdict.c)); }
-      else if (rb.mode === 'imprime' && t > rb.attente) { rb.mode = 'sort'; rb.aller([{ x: rb.g.position.x, z: COULOIR + 1.5 }, { x: 0, z: COULOIR + 1.5 }, { x: 0, z: PORTE.z + 1 }]); }
-      else if (rb.mode === 'sort') { rb.alpha -= dt * 1.5; if (rb.alpha <= 0) { rb.detruire(); robots.delete(rb.nom); continue; } }
-      else if (rb.mode === 'assis') rb.face = rb.place.face ?? 0;
+      else if (rb.mode === 'imprime' && t > rb.attente) quitterTravail(rb);
+      else if (rb.mode === 'sort' || rb.mode === 'rentre') { rb.alpha -= dt * 1.5; if (rb.alpha <= 0) { occupees.delete(rb.place); rb.detruire(); robots.delete(rb.nom); continue; } }
+      else if (rb.mode === 'vers-maison') rb.mode = 'maison';
+      else if (rb.mode === 'vers-reunion') rb.mode = 'reunion';
+      else if (['assis', 'maison', 'reunion'].includes(rb.mode)) rb.face = rb.place.face ?? 0;
     }
+    rb.dortForce = rb.estResident && rb.mode === 'maison' && estNuit();
+    animerLieu(rb, t);
     const tache = j.tache ? `<div class="b-tache">${esc(tacheCourte(j))}</div>` : '';
     const qui = rb.perso ? `<span class="b-nom" style="--nom:${rb.perso.couleur}">${esc(rb.perso.prenom)}<sup>${rb.perso.niveau}</sup></span>` : '';
     const ouverte = rb.survol ? ' ouverte' : '';
-    if (rb.mode === 'imprime' || rb.mode === 'sort') rb.texte(`${tache}<div class="b-act">${qui}🖨️ <span style="color:${rb.verdict.c}">${esc(rb.verdict.txt)}</span></div>`, 'verdict' + ouverte);
+    const lieu = donnees?.monde?.lieux?.[rb.nom];
+    if (rb.estResident) {
+      if (rb.mode === 'reunion' || rb.mode === 'vers-reunion') rb.texte(`<div class="b-act">${qui}🤝 revue de ${esc(rb.reunion || '')}</div>`, ouverte.trim());
+      else rb.texte(`<div class="b-act">${qui}${rb.mode === 'maison' ? (rb.dortForce ? '💤' : '🔧') : '🏠'}</div>`, 'mini' + ouverte);
+    }
+    else if ((rb.mode === 'assis' || rb.mode === 'va') && (lieu?.lieu === 'cafe' || lieu?.lieu === 'jardin')) { const depuis = j.debut && donnees ? ` <small>· ${duree(donnees.genereA - j.debut)}</small>` : ''; rb.texte(`${tache}<div class="b-act">${qui}${lieu.lieu === 'cafe' ? '☕' : '🌿'} ${esc(lieu.raison)}${depuis}</div>`, (lieu.lieu === 'jardin' ? 'dort' : '') + ouverte); }
+    else if (rb.mode === 'imprime' || rb.mode === 'sort') rb.texte(`${tache}<div class="b-act">${qui}🖨️ <span style="color:${rb.verdict.c}">${esc(rb.verdict.txt)}</span></div>`, 'verdict' + ouverte);
     else if (rb.mode === 'entre') rb.texte(`${tache}<div class="b-act">${qui}👋 arrive</div>`, ouverte.trim());
     else { const [ic, lb] = activite(j); const depuis = !j.session && j.debut && donnees ? ` <small>· ${duree(donnees.genereA - j.debut)}</small>` : ''; rb.texte(`${tache}<div class="b-act">${qui}${ic} ${lb}${depuis}</div>`, (j.statut === 'silencieux' || j.statut === 'attente' ? 'dort' : '') + ouverte); }
     rb.bulle.element.style.zIndex = rb.survol ? 50 : '';
@@ -760,9 +980,24 @@ function image() {
   BAIE.forEach(l => { const on = l.r < niveau && Math.sin(t * 0.006 * (1 + l.c * 0.3) + l.p) > -0.3; l.m.emissive.setHex(charge > 20 ? 0xff6b6b : 0x4ff0a0); l.m.emissiveIntensity = on ? 2.2 : 0.05; });
   voyantImp.emissiveIntensity = [...robots.values()].some(r => r.mode === 'imprime') ? 3 + Math.sin(t * 0.02) * 2 : 0.3;
   porteMat.emissiveIntensity = 1 + Math.sin(t * 0.002) * 0.4 + ([...robots.values()].some(r => r.mode === 'entre' || r.mode === 'sort') ? 2 : 0);
+  // café : baby-foot et balle de ping-pong quand deux joueurs sont là
+  const joueurs = jeu => [...robots.values()].filter(r => r.place?.jeu === jeu && r.mode === 'assis' && !r.chemin.length).length >= 2;
+  const baby = joueurs('babyfoot'); tiges.forEach((g, i) => g.rotation.z = baby ? Math.sin(t * 0.009 + i * 1.7) * 1.2 : 0);
+  balle.visible = joueurs('pingpong');
+  if (balle.visible) { const ph = (t * 0.0006) % 1, aller = Math.floor(t * 0.0006) % 2 === 0, u = aller ? ph : 1 - ph; balle.position.set(PINGPONG.x + Math.sin(t * 0.003) * 0.3, 0.85 + Math.abs(Math.sin(u * Math.PI * 2)) * 0.5, PINGPONG.z - 1.4 + u * 2.8); }
+  const nuit = estNuit();
+  lampadaires.forEach(m => m.emissiveIntensity = nuit ? 3 : 0.2);
+  MAISONS.forEach(ms => ms.fenetre.emissiveIntensity = nuit ? 1.8 : 0.1);
+  majFusees(dt);
   poussiere.rotation.y = t * 0.00002; poussiere.position.y = Math.sin(t * 0.0003) * 0.1;
   majGerbes(dt); majFeuilles(dt);
   if (t - tEcran > 500) { tEcran = t; dessinerEcran(); dessinerHorloge(); ambiance(); }
+  if (visee) {
+    const d = camera.position.clone().sub(controles.target);
+    controles.target.lerp(visee.cible, 0.05); camera.position.copy(controles.target).add(d);
+    camera.zoom += (visee.zoom - camera.zoom) * 0.05; camera.updateProjectionMatrix();
+    if (controles.target.distanceTo(visee.cible) < 0.03 && Math.abs(camera.zoom - visee.zoom) < 0.005) visee = null;
+  }
   controles.update();
   composer.render();
   placerBulles();
@@ -838,6 +1073,15 @@ renderer.domElement.addEventListener('pointermove', e => {
   const j = rb.job || {}, now = donnees.genereA;
   const type = j.session ? 'Session Claude (superviseur)' : `${(ROLE[j.role] || ROLE.analyse).nom}${j.tour ? ' · tour ' + j.tour : ''} · lot ${esc(j.lot)} · ${j.agent === 'claude' ? 'Claude' : 'Codex ' + (j.modele || '')}`;
   const pe = rb.perso;
+  if (rb.estResident && pe) {
+    info.innerHTML = `<span style="color:${pe.couleur}">● <b style="display:inline">${esc(pe.prenom)}</b></span> · niveau ${pe.niveau} ${pe.titre} · ${esc(pe.trait)} ${pe.badges.map(b => b.icone).join('')}\n` +
+      (rb.reunion ? `Rejoint son relecteur : revue de ${esc(rb.reunion)} en cours\n` : `Pas de travail en cours · ${rb.dortForce ? 'dort' : 'bricole'} à la maison\n`) +
+      (pe.derniereFin ? `Dernier travail : ${esc(pe.dernierTravail)}, terminé il y a ${duree(now - pe.derniereFin)}\n` : '') + `${pe.xp} XP · clic : fiche carrière`;
+    info.style.display = 'block';
+    const x = e.clientX + 18 + 380 > innerWidth ? e.clientX - 398 : e.clientX + 18;
+    info.style.left = Math.max(8, x) + 'px'; info.style.top = Math.min(e.clientY + 18, innerHeight - info.offsetHeight - 8) + 'px';
+    return;
+  }
   info.innerHTML = (pe ? `<span style="color:${pe.couleur}">● <b style="display:inline">${esc(pe.prenom)}</b></span> · niveau ${pe.niveau} ${pe.titre} · ${esc(pe.trait)} ${pe.badges.map(b => b.icone).join('')}\n` : '') + `<b>${esc(j.tache || j.titre || j.nom)}</b>${esc(j.nom.startsWith('session:') || j.nom.startsWith('claude:') ? (j.titre || '') + (j.projet ? ' · ' + j.projet : '') : j.nom)}\n${type}\n` +
     (rb.verdict ? `Terminé : <span style="color:${rb.verdict.c}">${esc(rb.verdict.txt)}</span>\n` : j.session ? `${j.statut === 'actif' ? 'Au travail' : 'Attend le propriétaire'} · dernière activité il y a ${duree(now - j.derniereEcriture)}\n` : `Au travail depuis ${duree(now - j.debut)} · dernière activité il y a ${duree(now - j.derniereEcriture)}\n`) +
     (j.tacheDetail ? `\n<span class="q">${esc(j.tacheDetail.slice(0, 280))}${j.tacheDetail.length > 280 ? '…' : ''}</span>\n` : '') +
@@ -853,7 +1097,7 @@ renderer.domElement.addEventListener('click', e => {
   const o = ray.intersectObjects(cliquables, true)[0]?.object; let p = o; while (p && !p.userData.panneau) p = p.parent;
   if (p) ouvrirPanneau(p.userData.panneau);
 });
-renderer.domElement.addEventListener('dblclick', () => { controles.autoRotate = false; camera.position.copy(CAM_DEPART); controles.target.set(-1, 0.5, 0.3); camera.zoom = innerWidth < 760 ? 0.7 : 0.95; camera.updateProjectionMatrix(); });
+renderer.domElement.addEventListener('dblclick', () => { controles.autoRotate = false; camera.position.copy(CAM_DEPART); controles.target.copy(CAM_CIBLE); camera.zoom = CAM_ZOOM(); camera.updateProjectionMatrix(); });
 const basculeTour = () => { controles.autoRotate = !controles.autoRotate; document.getElementById('b-tour').style.opacity = controles.autoRotate ? 1 : ''; };
 const basculeNuit = () => { nuitForcee = nuitForcee == null ? !nuitAuto() : null; ambiance(); };
 document.getElementById('b-tour').onclick = basculeTour;
@@ -1022,12 +1266,13 @@ fm.addEventListener('submit', async e => {
 addEventListener('keydown', e => { if ((e.key === 'm' || e.key === 'M') && !/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName) && !$('b-mission').hidden) ouvrirMission(); });
 
 async function boucle() {
-  try { appliquer(await (await fetch('/api/etat', { cache: 'no-store' })).json()); }
+  // __bureau.figer = true : suspend les mises à jour (pour rejouer un état modifié depuis la console, sans rien écrire sur disque)
+  try { const e = await (await fetch('/api/etat', { cache: 'no-store' })).json(); if (!window.__bureau.figer) appliquer(e); }
   catch (e) { document.getElementById('maj').textContent = 'serveur injoignable — nouvel essai…'; console.error(e); }
   setTimeout(boucle, 4000);
 }
 dessinerEcran(); dessinerHorloge(); ambiance(); boucle();
-window.__bureau = { robots, appliquer, ouvrir, get donnees() { return donnees; } };
+window.__bureau = { robots, appliquer, ouvrir, celebrer, viser, figer: false, get donnees() { return donnees; } };
 </script>
 </body>
 </html>

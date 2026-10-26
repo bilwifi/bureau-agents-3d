@@ -44,6 +44,8 @@ Les valeurs par défaut conviennent à un poste qui utilise le kit superviseur J
 | `placesMax` | nombre de places d'essais | `6` |
 | `silenceMinutes` | délai sans écriture avant « silencieux » | `15` |
 | `fenetreHeures` | historique affiché | `48` |
+| `maisonsMax` | personnages sans travail affichés dans les maisons | `14` |
+| `longueCommandeMinutes` | commande sans sortie depuis ce délai : l'agent patiente au café | `5` |
 
 Variables d'environnement prioritaires : `PORT`, `CODEX_OUT`, `CLAUDE_PROJECTS`, `CAMPAIGN_LOCK` (listes séparées par `:`), `BUREAU_CONFIG` (chemin d'un autre fichier de configuration).
 
@@ -89,6 +91,22 @@ Le bureau 3D est aussi un petit monde où les agents ont une vie. **Règle : tou
 - **Mémoire** : `donnees/monde.json` (ignoré par git) garde chaque travail vu, même au-delà de la fenêtre de 48 h, et les prénoms attribués. On peut le supprimer : il se reconstruit à partir des journaux encore présents.
 
 `/api/carriere?id=<lignée>` renvoie la fiche carrière en JSON ; `/api/etat` contient la clé `monde`.
+
+### Lieux de vie
+
+Le bureau est devenu un campus : les zones d'origine (atelier, salle de revue, intégration, supervision) sont au centre, reliées par une avenue et des allées aux lieux de vie. Chaque déplacement correspond à un état réel :
+
+| Lieu | Qui y va | Fait réel lu |
+|---|---|---|
+| ☕ **Café** (baby-foot, ping-pong, comptoir) | agent qui **attend une place d'essais** ou dont **une commande dure** | un `campaign-lock.sh` de l'agent tourne sans détenir de place (verrou `.pid`, filiation des processus) ; ou dernière marque `exec` sans écriture du journal depuis `longueCommandeMinutes` |
+| | deux agents en attente jouent ensemble ; un agent seul prend un café au comptoir | |
+| 🌿 **Jardin** | agent **silencieux** (on voit qui est bloqué) | aucune écriture depuis `silenceMinutes` |
+| 📚 **Bibliothèque** | **diagnostic** et **analyse** en cours | rôle déduit du nom ou de la description |
+| 🤝 **Salle de revue** | le **producteur** rejoint le relecteur de son lot | une revue de son lot est en cours et il n'a pas d'autre travail |
+| 🎉 **Place des fêtes** | confettis à une **approbation** (`P0=0 P1=0`), feu d'artifice à une **intégration qualifiée** | événements calculés par `monde.mjs` |
+| 🏠 **Maisons** | personnages **sans travail en cours** : ils bricolent le jour, dorment la nuit, au lieu de disparaître | dernier travail terminé dans les 24 h (`maisonsMax` personnages au plus) |
+
+Un personnage qui reprend du travail quitte sa maison et marche jusqu'à son poste ; à la fin, il passe à l'imprimante puis rentre chez lui. Les nouveaux venus arrivent par le portail du campus.
 
 ## Commandes du bureau 3D
 

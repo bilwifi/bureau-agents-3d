@@ -30,6 +30,8 @@ const DEFAUT = {
   claudeBin: null,         // détecté (application Claude, PATH…)
   depot: null,             // dossier de travail des nouvelles missions
   codexRun: null,          // script du poste pour les nouvelles missions (ex. codex-run.sh du kit) ; sinon lanceur.sh
+  maisonsMax: 14,          // personnages sans travail affichés dans les maisons
+  longueCommandeMinutes: 5, // commande sans sortie depuis ce délai : l'agent patiente au café
 };
 const CONFIG = (() => {
   let c = { ...DEFAUT };

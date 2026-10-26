@@ -3,6 +3,7 @@
 // Mémoire : donnees/monde.json (historique conservé au-delà de la fenêtre d'affichage, recalculable).
 import fs from 'node:fs';
 import path from 'node:path';
+import { execFileSync } from 'node:child_process';
 
 // ---------- Identité stable, tirée du nom de la lignée ----------
 const PRENOMS = ['Ada', 'Bola', 'Céleste', 'Dina', 'Elikia', 'Fanta', 'Grâce', 'Hiro', 'Ilunga', 'Jade', 'Kiese', 'Lumbu', 'Malaika', 'Nkosi', 'Olga', 'Pemba',
@@ -181,6 +182,47 @@ export function creerMonde({ ICI, CONFIG }) {
       derniereFin: dernier?.fin || null, dernierTravail: dernier?.nom || null };
   }
 
+  // ---------- Lieux de vie : déduits de l'état réel de chaque travail ----------
+  // Processus des campagnes d'essais : un agent dont un campaign-lock.sh tourne sans détenir de place attend une place.
+  let cachePs = { date: 0, procs: new Map() };
+  function processus() {
+    if (Date.now() - cachePs.date < 3000) return cachePs.procs;
+    const procs = new Map();
+    try {
+      for (const l of execFileSync('ps', ['-axo', 'pid=,ppid=,command='], { encoding: 'utf8', maxBuffer: 1 << 24 }).split('\n')) {
+        const m = l.match(/^\s*(\d+)\s+(\d+)\s+(.*)$/); if (m) procs.set(Number(m[1]), { ppid: Number(m[2]), cmd: m[3] });
+      }
+    } catch {}
+    cachePs = { date: Date.now(), procs };
+    return procs;
+  }
+  function campagnes(etat) {
+    const procs = processus(), res = {};
+    const agents = new Map(etat.travaux.filter(t => t.pid).map(t => [t.pid, t.nom]));
+    const detenteurs = new Set(etat.places.filter(p => p.vivant && p.pid).map(p => p.pid));
+    for (const [pid, p] of procs) {
+      if (!/campaign-lock\.sh/.test(p.cmd)) continue;
+      let q = pid, nom = null;
+      for (let i = 0; i < 12 && q > 1 && !nom; i++) { nom = agents.get(q) || null; q = procs.get(q)?.ppid || 0; }
+      if (!nom) continue;
+      if (detenteurs.has(pid)) res[nom] = 'essais'; else if (res[nom] !== 'essais') res[nom] = 'attente';
+    }
+    return res;
+  }
+  function lieux(etat) {
+    const maintenant = etat.genereA, camp = campagnes(etat), res = {};
+    const longue = (CONFIG.longueCommandeMinutes ?? 5) * 60_000;
+    for (const t of etat.travaux) {
+      if (t.statut === 'silencieux') { res[t.nom] = { lieu: 'jardin', raison: `silencieux depuis ${Math.round((maintenant - t.derniereEcriture) / 60_000)} min` }; continue; }
+      if (t.statut !== 'actif') continue;
+      if (camp[t.nom] === 'attente') res[t.nom] = { lieu: 'cafe', raison: "attend une place d'essais" };
+      else if (camp[t.nom] === 'essais') res[t.nom] = { lieu: 'travail', raison: "occupe une place d'essais", essais: true };
+      else if (t.derniereMarque === 'exec' && t.derniereEcriture && maintenant - t.derniereEcriture > longue) res[t.nom] = { lieu: 'cafe', raison: `longue commande (${Math.round((maintenant - t.derniereEcriture) / 60_000)} min)` };
+      else if (t.role === 'diagnostic' || t.role === 'analyse') res[t.nom] = { lieu: 'bibliotheque', raison: t.role === 'diagnostic' ? 'diagnostic' : 'analyse' };
+    }
+    return res;
+  }
+
   // ---------- Vue complète, ajoutée à /api/etat ----------
   function enrichir(etat) {
     const maintenant = etat.genereA;
@@ -192,8 +234,17 @@ export function creerMonde({ ICI, CONFIG }) {
     for (const p of persos.values()) personnages[p.id] = fiche(p, maintenant);
     const semaine = [...persos.values()].filter(p => p.xpSemaine > 0).sort((a, b) => b.xpSemaine - a.xpSemaine)[0];
     const trophees = [...persos.values()].flatMap(p => p.badges.map(b => ({ lignee: p.id, prenom: p.prenom, id: b.id, nom: b.nom, icone: b.icone, date: b.date }))).sort((a, b) => b.date - a.date).slice(0, 40);
+    // Lignées avec un travail en cours ; revues en cours où le producteur (sans travail) rejoint son relecteur.
+    const occupees = new Set(etat.travaux.filter(t => t.statut === 'actif' || t.statut === 'silencieux').map(t => affectations[t.nom]));
+    const revues = etat.travaux.filter(t => t.role === 'revue' && t.statut === 'actif')
+      .map(t => ({ lot: t.lot, relecteur: t.nom, producteur: `${t.agent === 'claude' ? 'claude' : 'codex'}:production:${t.lot}` }))
+      .filter(r => persos.has(r.producteur) && !occupees.has(r.producteur));
+    // Résidents : personnages sans travail en cours, le plus récemment actifs (24 h), qui vivent dans les maisons.
+    const residents = [...persos.values()].filter(p => !occupees.has(p.id) && personnages[p.id].derniereFin && maintenant - personnages[p.id].derniereFin < 24 * 3600_000)
+      .sort((a, b) => personnages[b.id].derniereFin - personnages[a.id].derniereFin).slice(0, CONFIG.maisonsMax ?? 14).map(p => p.id);
+    for (const r of revues) if (!residents.includes(r.producteur)) residents.push(r.producteur);
     return {
-      personnages, affectations, trophees,
+      personnages, affectations, trophees, lieux: lieux(etat), revues, residents,
       employeSemaine: semaine ? { lignee: semaine.id, prenom: semaine.prenom, xp: semaine.xpSemaine } : null,
       evenements: evenements.filter(e => e.date > maintenant - 3 * 86400_000).slice(-80),
     };
