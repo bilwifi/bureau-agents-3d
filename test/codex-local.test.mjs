@@ -62,3 +62,9 @@ test('interruption, réponse finale, contexte système et commandes shell native
   appliquerEvenement(s, event('response_item', { type: 'local_shell_call', action: { command: ['powershell', '-Command', 'Get-Date'] } }, 3000));
   assert.equal(s.etat, 'actif'); assert.match(s.commande.commande, /Get-Date/);
 });
+
+test('une conversation déjà suivie par son journal codex-run.sh n\'est pas comptée deux fois', t => {
+  const { lecteur } = fixture(t);
+  assert.equal(lecteur.travaux(base + 2000).length, 1);
+  assert.equal(lecteur.travaux(base + 2000, new Set(['test-1'])).length, 0);
+});

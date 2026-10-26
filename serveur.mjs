@@ -21,7 +21,8 @@ const DEFAUT = {
   consignes: ['/private/tmp/claude-*/*/*/scratchpad', '/private/tmp/claude-*/*/*/scratchpad/codex'],
   claudeProjects: ['~/.claude/projects/*'],
   claudeProjectFilter: null,
-  codexSessions: [path.join(process.env.CODEX_HOME || path.join(os.homedir(), '.codex'), 'sessions')],
+  // Sessions natives Codex Desktop/CLI : lues par défaut sous Windows seulement (ailleurs, codex-run.sh écrit les journaux suivis ci-dessus).
+  codexSessions: process.platform === 'win32' ? [path.join(process.env.CODEX_HOME || path.join(os.homedir(), '.codex'), 'sessions')] : [],
   campaignLock: '/tmp/jnapps-campaign.lock',
   placesMax: 6,
   silenceMinutes: 15,
@@ -275,7 +276,7 @@ function agentsCodex(maintenant) {
       commande: vivant ? derniereCommande(q) : null,
       derniereMarque: vivant ? ([...q.matchAll(/\n(exec|codex|apply patch|tokens used)\n/g)].at(-1)?.[1] ?? null) : null,
       limite: /limite_atteinte=1/.test(q), repli: /fallback=gpt-6-sol/.test(q),
-      aSession: /session id:\s*[0-9a-f-]{36}/.test(h), lanceParBureau: /^lance_par=bureau/m.test(h),
+      aSession: /session id:\s*[0-9a-f-]{36}/.test(h), sessionCodex: (h.match(/session id:\s*([0-9a-f-]{36})/) || [])[1] || null, lanceParBureau: /^lance_par=bureau/m.test(h),
       verdict: verdict(rapport), aRapport: !!rapport,
     });
   }
@@ -437,7 +438,8 @@ function etat() {
   const maintenant = Date.now();
   const codex = agentsCodex(maintenant);
   const claude = agentsClaude(maintenant);
-  const natifs = codexLocal.travaux(maintenant);
+  // Une conversation déjà suivie par son journal codex-run.sh n'est pas comptée une seconde fois.
+  const natifs = codexLocal.travaux(maintenant, new Set(codex.travaux.map(t => t.sessionCodex).filter(Boolean)));
   const travaux = [...codex.travaux, ...natifs, ...claude.agents].sort((a, b) => (b.debut || 0) - (a.debut || 0));
   return {
     genereA: maintenant, poste: os.hostname(), travaux, sessions: claude.sessions, quota: codex.quota,

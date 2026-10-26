@@ -107,14 +107,14 @@ export function creerLecteurCodex({ racines = [path.join(process.env.CODEX_HOME 
     cache.set(f, { taille: st.size, mtime: st.mtimeMs, position, s });
     return s;
   }
-  function travaux(now = Date.now()) {
+  function travaux(now = Date.now(), dejaSuivies = new Set()) {
     const resultats = new Map(); connus.clear();
     for (const f of fichiers(now)) {
       try {
         const st = fs.statSync(f);
         if (now - st.mtimeMs > fenetreHeures * 3600000) continue;
         const s = lire(f, st);
-        if (!s.id || !s.date || now - s.date > fenetreHeures * 3600000) continue;
+        if (!s.id || !s.date || now - s.date > fenetreHeures * 3600000 || dejaSuivies.has(s.id)) continue;
         const nom = `codex-local:${s.id}`;
         const statut = s.etat === 'actif' && now - s.date > silenceMinutes * 60000 ? 'silencieux' : s.etat || 'interrompu';
         const vivant = ['actif', 'silencieux'].includes(statut);

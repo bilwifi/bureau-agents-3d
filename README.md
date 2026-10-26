@@ -32,9 +32,11 @@ Node 20 ou plus. Aucune autre dépendance. La météo est le seul appel réseau 
 
 ### Windows et Codex Desktop
 
-Le serveur détecte aussi les conversations enregistrées localement par Codex Desktop/CLI.
+Sous Windows, le serveur détecte aussi les conversations enregistrées localement par Codex Desktop/CLI.
 Le dossier par défaut est `%USERPROFILE%\.codex\sessions`, ou `sessions` sous
-`CODEX_HOME` si cette variable est définie. Aucun script `codex-run.sh` n'est nécessaire
+`CODEX_HOME` si cette variable est définie. Sur macOS et Linux, cette lecture est désactivée par
+défaut (les agents de `codex-run.sh` y écrivent aussi leurs conversations) ; l'activer en
+renseignant `codexSessions`. Aucun script `codex-run.sh` n'est nécessaire
 pour ces conversations. Pour un autre emplacement, ajouter dans `config.json` :
 
 ```json
@@ -46,7 +48,10 @@ pour ces conversations. Pour un autre emplacement, ajouter dans `config.json` :
 
 Lancer `npm install` puis `npm start` depuis PowerShell avec Node 20 ou plus.
 Les chemins Windows absolus et les motifs avec `~` sont acceptés dans la configuration.
-Pour désactiver la lecture native : `"codexSessions": []`.
+Pour désactiver la lecture native : `"codexSessions": []`. Une conversation déjà suivie par un
+journal `codex-run.sh` (même identifiant de session) n'est jamais comptée deux fois. Les
+conversations natives n'ont ni lot ni verdict : elles apparaissent au bureau mais n'ont pas de
+personnage ni de carrière dans le monde des agents.
 
 Les événements du journal indiquent le début, la fin et l'interruption des tours.
 Un tour sans activité pendant `silenceMinutes` est affiché comme silencieux ; cela ne
@@ -73,7 +78,7 @@ Les valeurs par défaut conviennent à un poste qui utilise le kit superviseur J
 | `consignes` | dossiers où chercher les consignes `<nom>.prompt` ou `<nom>.md` | scratchpads Claude |
 | `claudeProjects` | dossiers de projets Claude Code | `~/.claude/projects/*` |
 | `claudeProjectFilter` | expression régulière pour ne garder que certains projets | aucun filtre |
-| `codexSessions` | dossiers des journaux natifs Codex Desktop/CLI (lecture récursive, `[]` pour désactiver) | `CODEX_HOME/sessions` ou `~/.codex/sessions` |
+| `codexSessions` | dossiers des journaux natifs Codex Desktop/CLI (lecture récursive, `[]` pour désactiver) | Windows : `CODEX_HOME/sessions` ou `~/.codex/sessions` ; ailleurs `[]` |
 | `campaignLock` | préfixe des verrous de campagne (bancs d'essais) | `/tmp/jnapps-campaign.lock` |
 | `placesMax` | nombre de places d'essais | `6` |
 | `silenceMinutes` | délai sans écriture avant « silencieux » | `15` |
