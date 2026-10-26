@@ -133,7 +133,7 @@ body.taches-off .bulle .b-tache { display: none; }
   <div class="kpi verre"><span>Terminés 24 h</span><b id="k-jour">–</b></div>
   <div class="kpi verre"><span>Quota Codex</span><b id="k-quota">–</b></div>
   <div class="kpi verre" id="k-alim-c"><span>Alimentation</span><b id="k-alim">–</b></div>
-  <div id="liens" class="verre"><button id="b-mission" title="Lancer un agent Codex (M)" hidden>＋ Mission</button><button id="b-trophees" title="Mur des trophées (R)">🏆 Trophées</button><button id="b-taches" title="Afficher les tâches (L)">🏷 Tâches</button><button id="b-tour" title="Caméra automatique (T)">🎬 Tournage</button><button id="b-nuit" title="Jour / nuit (N)">🌙 Nuit</button><a href="/pixel">Pixel</a><a href="/tableau">Tableau →</a></div>
+  <div id="liens" class="verre"><button id="b-mission" title="Lancer un agent Codex (M)" hidden>＋ Mission</button><button id="b-trophees" title="Mur des trophées (R)">🏆 Trophées</button><button id="b-chronique" title="Chronique du jour (C)">📜 Chronique</button><button id="b-taches" title="Afficher les tâches (L)">🏷 Tâches</button><button id="b-tour" title="Caméra automatique (T)">🎬 Tournage</button><button id="b-nuit" title="Jour / nuit (N)">🌙 Nuit</button><a href="/pixel">Pixel</a><a href="/tableau">Tableau →</a></div>
 </div>
 <div id="fil" class="verre"><div>En attente des premières nouvelles…</div></div>
 <div id="legende" class="verre">
@@ -512,6 +512,37 @@ const MAISONS = [];
   MAISONS.push({ x, g, fenetre: fen, places, porte: { x, z: 25.4, allee: x + 2.1, dehors: true, zone: 'porte', face: Math.PI } });
 });
 { const c = M(0x2b2f3d); boite(0.3, 3, 0.3, c, PORTAIL.x - 1.4, 1.5, PORTAIL.z); boite(0.3, 3, 0.3, c, PORTAIL.x + 1.4, 1.5, PORTAIL.z); boite(3.1, 0.3, 0.3, porteMat, PORTAIL.x, 3, PORTAIL.z, scene, false); }
+// ----- Compteur d'assemblage (place des fêtes) -----
+const compteurCanvas = document.createElement('canvas'); compteurCanvas.width = 1024; compteurCanvas.height = 640;
+const compteurTex = new THREE.CanvasTexture(compteurCanvas); compteurTex.colorSpace = THREE.SRGBColorSpace; compteurTex.anisotropy = 8;
+const COMPTEUR = new THREE.Group(); COMPTEUR.position.set(9.2, 0, 16.6); COMPTEUR.rotation.y = -0.15; scene.add(COMPTEUR);
+{ for (const x of [-2.1, 2.1]) boite(0.14, 3.3, 0.14, MAT.boisFonce, x, 1.65, 0, COMPTEUR);
+  boite(4.4, 2.8, 0.1, MAT.noir, 0, 1.95, -0.02, COMPTEUR);
+  const p = new THREE.Mesh(new THREE.PlaneGeometry(4.2, 2.62), new THREE.MeshBasicMaterial({ map: compteurTex, toneMapped: false })); p.position.set(0, 1.95, 0.04); COMPTEUR.add(p); COMPTEUR.userData.panneau = 'chronique'; }
+function dessinerCompteur() {
+  const c = compteurCanvas.getContext('2d'), W = 1024, H = 640, m = donnees?.monde, k = m?.compteur;
+  const gr = c.createLinearGradient(0, 0, 0, H); gr.addColorStop(0, '#0e1f2a'); gr.addColorStop(1, '#08121a'); c.fillStyle = gr; c.fillRect(0, 0, W, H);
+  c.fillStyle = '#4ff0a0'; c.font = '700 42px "Space Grotesk", sans-serif'; c.fillText("COMPTEUR D'ASSEMBLAGE", 40, 66);
+  c.fillStyle = 'rgba(255,255,255,.5)'; c.font = '600 22px "Space Grotesk", sans-serif'; c.fillText('PILOTES QUALIFIÉS', 40, 130); c.fillText('LOTS APPROUVÉS CETTE SEMAINE', 470, 130);
+  c.fillStyle = '#fff'; c.font = '700 150px "Space Grotesk", sans-serif'; c.fillText(String(k?.pilotesQualifies ?? '–'), 40, 280);
+  c.fillStyle = '#ffd35c'; c.fillText(String(k?.lotsApprouvesSemaine?.length ?? '–'), 470, 280);
+  c.fillStyle = 'rgba(255,255,255,.6)'; c.font = '24px "JetBrains Mono", monospace';
+  if (k?.dernierPilote) c.fillText('dernier : ' + k.dernierPilote, 40, 330);
+  (k?.lotsApprouvesSemaine || []).slice(0, 6).forEach((l, i) => c.fillText('✓ ' + l, 470 + (i % 2) * 260, 330 + Math.floor(i / 2) * 36));
+  c.fillStyle = m?.reunion ? '#ffd35c' : m?.fete ? '#ff8fb1' : 'rgba(255,255,255,.45)'; c.font = '600 28px "Space Grotesk", sans-serif';
+  c.fillText(m?.reunion ? '☀️ Réunion du matin en cours' : m?.fete ? '🎶 Fête de fin de semaine !' : m?.heureReunion ? `Réunion du matin à ${m.heureReunion} (jours ouvrés)` : '', 40, 470);
+  c.fillStyle = 'rgba(255,255,255,.4)'; c.font = '22px "Space Grotesk", sans-serif'; c.fillText('Cliquer : chronique du jour', 40, 600);
+  compteurTex.needsUpdate = true;
+}
+// ----- Lampions de la fête (visibles seulement pendant la fête de fin de semaine) -----
+const COULEURS_LAMPIONS = [0xff6b6b, 0xffd35c, 0x4ff0a0, 0x7ab8ff];
+const LAMPIONS = new THREE.Group(); LAMPIONS.visible = false; scene.add(LAMPIONS);
+for (let i = 0; i < 28; i++) { const a = i / 28 * Math.PI * 2; const l = new THREE.Mesh(new THREE.SphereGeometry(0.12, 10, 8), lueur(COULEURS_LAMPIONS[i % 4], 2.5)); l.position.set(PLACE_FETE.x + Math.sin(a) * 4.0, 2.6 + Math.sin(i * 1.3) * 0.15, PLACE_FETE.z + Math.cos(a) * 4.0); LAMPIONS.add(l); }
+// ----- Chaleur au-dessus de la baie quand la machine est très chargée -----
+const CHALEUR = []; {
+  const mat = new THREE.MeshBasicMaterial({ color: 0xff7a3d, transparent: true, opacity: 0.0, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide });
+  for (let i = 0; i < 6; i++) { const p = new THREE.Mesh(new THREE.PlaneGeometry(0.9, 0.5), mat.clone()); p.position.set(11.8 + (i % 3 - 1) * 0.3, 3.6, -8.6 + (i % 2) * 0.3); p.rotation.y = i; scene.add(p); CHALEUR.push({ p, ph: i / 6 }); }
+}
 const PLACES = { atelier: BUREAUX.map(b => b.place), revue: PLACES_REVUE, labo: PLACES_LABO, supervision: PLACES_SUPERVISION, attente: ATTENTE, cafe: PLACES_CAFE, bibliotheque: PLACES_BIBLIO, jardin: PLACES_JARDIN, fete: PLACES_FETE };
 const zoneDe = role => role === 'revue' ? 'revue' : role === 'integration' ? 'labo' : 'atelier';
 
@@ -528,6 +559,8 @@ function accessoire(rb, type, couleur) {
   else if (type === 'chapeau') { ajoute(new THREE.CylinderGeometry(0.34, 0.34, 0.025, 24), 0, 0.2, 0); ajoute(new THREE.CylinderGeometry(0.19, 0.21, 0.24, 20), 0, 0.33, 0); }
   else if (type === 'sac') { ajoute(new THREE.BoxGeometry(0.34, 0.36, 0.16), 0, 0.78, -0.33, rb.corps); }
 }
+const MAT_NUAGE = M(0x8d93a6, { roughness: 1, transparent: true, opacity: 0.92 }), MAT_GOUTTE = lueur(0x7ab8ff, 1.2);
+const PARTAGES = new Set([MAT.verreSombre, MAT.metal, MAT_NUAGE, MAT_GOUTTE]);
 const SANS_CLAVIER = new Set(['cafe', 'jardin', 'bibliotheque', 'maison', 'fete', 'porte', 'portail']);
 class Robot {
   constructor(nom, claude, role, perso = null) {
@@ -554,7 +587,11 @@ class Robot {
     if (perso) accessoire(this, perso.accessoire, new THREE.Color(perso.couleurAccessoire));
     this.couronne = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.13, 0.12, 6, 1, true), lueur(0xffd35c, 1.6));
     this.couronne.material.side = THREE.DoubleSide; this.couronne.position.y = 0.72; this.couronne.visible = false; this.tete.add(this.couronne);
-    this.g.traverse(o => { if (o.isMesh) { o.castShadow = true; o.userData.robot = this; } });
+    this.nuage = new THREE.Group(); this.nuage.position.set(0.45, 1.95, 0); this.nuage.visible = false; this.g.add(this.nuage);
+    for (const [x, y, r] of [[-0.14, 0, 0.13], [0.04, 0.05, 0.17], [0.2, 0, 0.12]]) { const b = new THREE.Mesh(new THREE.SphereGeometry(r, 12, 10), MAT_NUAGE); b.position.set(x, y, 0); this.nuage.add(b); }
+    this.gouttes = [0, 1, 2].map(i => { const d = new THREE.Mesh(new THREE.CapsuleGeometry(0.012, 0.05, 2, 4), MAT_GOUTTE); d.position.set(-0.12 + i * 0.14, -0.15, 0); this.nuage.add(d); return d; });
+    this.etincelle = new THREE.Mesh(new THREE.OctahedronGeometry(0.07, 0), lueur(0xffd35c, 3)); this.etincelle.visible = false; this.g.add(this.etincelle);
+    this.g.traverse(o => { if (o.isMesh) { o.castShadow = true; o.userData.robot = this; if (PARTAGES.has(o.material)) o.material = o.material.clone(); } }); // matériaux propres : le fondu d'un robot n'atteint pas les autres
     this.halo = new THREE.Mesh(new THREE.RingGeometry(0.42, 0.5, 40), new THREE.MeshBasicMaterial({ color: roleC, transparent: true, opacity: 0.0, blending: THREE.AdditiveBlending, depthWrite: false }));
     this.halo.rotation.x = -Math.PI / 2; this.halo.position.y = 0.02; this.g.add(this.halo);
     const ancre = document.createElement('div'); ancre.className = 'ancre';
@@ -749,7 +786,8 @@ function appliquer(s) {
       const lignee = m.affectations?.[nom];
       const ancien = lignee && [...robots.values()].find(r => r.estResident && r.lignee === lignee);
       if (ancien) { // le personnage quitte sa maison (ou la salle de revue) pour ce nouveau travail
-        robots.delete(ancien.nom); rb = ancien; rb.nom = nom; rb.estResident = false; rb.reunion = null; rb.dortForce = false; rb.verdict = null; rb.alerte = false; rb.couleurRole(t.role);
+        robots.delete(ancien.nom); rb = ancien; rb.nom = nom; rb.rassemblement = null;
+        if (rb.alpha < 1) { rb.alpha = 1; rb.g.traverse(o => { if (o.material && o !== rb.halo) o.material.opacity = 1; }); } rb.estResident = false; rb.reunion = null; rb.dortForce = false; rb.verdict = null; rb.alerte = false; rb.couleurRole(t.role);
         rb.job = t; deplacer(rb, zv === 'cafe' ? 'fete' : zv, 'entre');
         noter(`<b>${esc(nomP || t.titre || nom)}</b> part travailler · ${(ROLE[t.role] || ROLE.analyse).nom.toLowerCase()} ${esc(t.lot || '')}`, new Date(), nom);
       } else {
@@ -793,12 +831,19 @@ function appliquer(s) {
     rb.place = placeMaison(l); rb.placer(rb.place); rb.mode = 'maison'; rb.job = { nom: rb.nom, statut: 'repos' };
     robots.set(rb.nom, rb);
   }
+  // Réunion du matin et fête de fin de semaine : les résidents se retrouvent sur la place, autour du compteur d'assemblage.
+  const rassemblement = m.reunion ? 'reunion' : m.fete ? 'fete' : null;
+  if (rassemblement && rassemblement !== dernierRassemblement) noter(rassemblement === 'reunion' ? `☀️ Réunion du matin : ${m.compteur?.pilotesQualifies ?? 0} pilotes qualifiés, ${m.compteur?.lotsApprouvesSemaine?.length ?? 0} lots approuvés cette semaine` : `🎶 Fête de fin de semaine : ${m.compteur?.lotsApprouvesSemaine?.length ?? 0} lots approuvés !`);
+  dernierRassemblement = rassemblement;
   for (const rb of [...robots.values()]) {
     if (!rb.estResident || ['rentre', 'sort'].includes(rb.mode)) continue;
     const r = reunions.get(rb.lignee);
     if (!residents.has(rb.lignee)) deplacer(rb, MAISONS[rb.place?.maison ?? hacher(rb.lignee) % MAISONS.length].porte, 'rentre');
-    else if (r && rb.reunion !== r.lot) { rb.reunion = r.lot; deplacer(rb, 'revue', 'vers-reunion'); noter(`🤝 <b>${esc(rb.perso?.prenom)}</b> rejoint son relecteur pour la revue de ${esc(r.lot)}`, new Date(), r.relecteur); }
-    else if (!r && rb.reunion) { rb.reunion = null; deplacer(rb, placeMaison(rb.lignee), 'vers-maison'); }
+    else if (r) { if (rb.reunion !== r.lot) { rb.reunion = r.lot; rb.rassemblement = null; deplacer(rb, 'revue', 'vers-reunion'); noter(`🤝 <b>${esc(rb.perso?.prenom)}</b> rejoint son relecteur pour la revue de ${esc(r.lot)}`, new Date(), r.relecteur); } }
+    else if (rb.reunion || (rb.rassemblement || null) !== rassemblement) {
+      rb.reunion = null; rb.rassemblement = rassemblement;
+      if (rassemblement) deplacer(rb, 'fete', 'vers-place'); else deplacer(rb, placeMaison(rb.lignee), 'vers-maison');
+    }
   }
   nouveauxEvenements(m);
   if (premier) {
@@ -819,11 +864,12 @@ function appliquer(s) {
   document.getElementById('k-alim-c').classList.toggle('alerte', !!(bt && !bt.secteur && vivants.length));
   document.getElementById('b-mission').hidden = !(s.actions && JETON_PAGE);
   document.getElementById('maj').textContent = `en direct · ${new Date(now).toLocaleTimeString('fr-FR')} · charge ${s.machine.charge[0]}`;
-  dessinerEcran(); dessinerTrophees();
+  dessinerEcran(); dessinerTrophees(); dessinerCompteur();
+  if ($('panneau').dataset.vue === 'chronique') panneauChronique();
   if ($('panneau').dataset.vue === 'trophees') panneauTrophees();
 }
 // Événements nouveaux depuis l'ouverture de la page : on fête les approbations et les intégrations qualifiées.
-const vus = new Set(); let evenementsPrets = false;
+const vus = new Set(); let evenementsPrets = false, dernierRassemblement = null;
 function nouveauxEvenements(m) {
   const neufs = [];
   for (const e of m?.evenements || []) if (!vus.has(e.id)) { vus.add(e.id); if (evenementsPrets) neufs.push(e); }
@@ -907,6 +953,17 @@ function quitterTravail(rb) {
     robots.set(rb.nom, rb); deplacer(rb, placeMaison(l), 'vers-maison');
   } else deplacer(rb, PORTAIL, 'sort');
 }
+// Humeur (moral calculé par le serveur sur les verdicts) et fatigue (quota Codex bas : bâillements).
+function humeur(rb, t, dt) {
+  const s = t * 0.001 + rb.graine, moral = rb.perso?.moral?.etat, visible = rb.alpha > 0.5;
+  rb.nuage.visible = visible && moral === 'nuage';
+  if (rb.nuage.visible) { rb.nuage.position.y = 1.95 + Math.sin(s * 1.5) * 0.04; rb.gouttes.forEach((g, i) => { const u = (s * 1.2 + i * 0.33) % 1; g.position.y = -0.12 - u * 0.5; g.visible = u < 0.9; }); }
+  rb.etincelle.visible = visible && moral === 'entrain';
+  if (rb.etincelle.visible) { const a = s * 2.2; rb.etincelle.position.set(Math.cos(a) * 0.45, 1.6 + Math.sin(s * 3) * 0.1, Math.sin(a) * 0.45); rb.etincelle.rotation.y = s * 4; if (!rb.chemin.length && (s % 7) < dt * 1.2) rb.saut = t; }
+  const quotaBas = donnees?.monde?.fatigue?.quotaBas && !rb.claude && !rb.dortForce;
+  rb.baille = quotaBas && !rb.chemin.length && ((s + rb.graine * 3) % 13) < 1.8;
+  if (rb.baille) { rb.tete.rotation.x = -0.4; rb.bras[0].rotation.x = -2.7; rb.bras[1].rotation.x = -2.7; }
+}
 // Gestes propres à chaque lieu (le reste de l'animation est dans Robot.maj).
 function animerLieu(rb, t) {
   const s = t * 0.001 + rb.graine, z = rb.place?.zone, B = rb.bras;
@@ -921,6 +978,8 @@ function animerLieu(rb, t) {
   } else if (z === 'bibliotheque' && rb.mode === 'assis') { B[0].rotation.x = -0.95; B[1].rotation.x = -0.95; rb.tete.rotation.x = 0.3; rb.tete.rotation.y = Math.sin(s * 0.5) * 0.15; }
   else if (rb.mode === 'maison' && !rb.dortForce) { B[1].rotation.x = -1.3 + Math.abs(Math.sin(s * 5)) * 0.8; rb.tete.rotation.x = 0.25; }
   else if (rb.mode === 'reunion') { rb.tete.rotation.y = Math.sin(s * 0.9) * 0.3; }
+  else if (rb.mode === 'place' && rb.rassemblement === 'fete') { rb.g.rotation.y += Math.sin(s * 2) * 0.03; rb.corps.position.y = Math.abs(Math.sin(s * 6)) * 0.15; B[0].rotation.x = -2.4 + Math.sin(s * 6) * 0.5; B[1].rotation.x = -2.4 - Math.sin(s * 6) * 0.5; }
+  else if (rb.mode === 'place') { rb.tete.rotation.x = Math.sin(s * 1.4) * 0.12; }
 }
 // Caméra : glisse doucement vers un lieu (reprise en main dès qu'on touche la scène).
 let visee = null;
@@ -941,16 +1000,20 @@ function image() {
       else if (rb.mode === 'sort' || rb.mode === 'rentre') { rb.alpha -= dt * 1.5; if (rb.alpha <= 0) { occupees.delete(rb.place); rb.detruire(); robots.delete(rb.nom); continue; } }
       else if (rb.mode === 'vers-maison') rb.mode = 'maison';
       else if (rb.mode === 'vers-reunion') rb.mode = 'reunion';
-      else if (['assis', 'maison', 'reunion'].includes(rb.mode)) rb.face = rb.place.face ?? 0;
+      else if (rb.mode === 'vers-place') rb.mode = 'place';
+      else if (['assis', 'maison', 'reunion', 'place'].includes(rb.mode)) rb.face = rb.place.face ?? 0;
     }
     rb.dortForce = rb.estResident && rb.mode === 'maison' && estNuit();
     animerLieu(rb, t);
+    humeur(rb, t, dt);
     const tache = j.tache ? `<div class="b-tache">${esc(tacheCourte(j))}</div>` : '';
-    const qui = rb.perso ? `<span class="b-nom" style="--nom:${rb.perso.couleur}">${esc(rb.perso.prenom)}<sup>${rb.perso.niveau}</sup></span>` : '';
+    const moral = rb.perso?.moral?.etat, icHumeur = rb.baille ? '🥱' : moral === 'nuage' ? '☁️' : moral === 'entrain' ? '✨' : '';
+    const qui = rb.perso ? `<span class="b-nom" style="--nom:${rb.perso.couleur}">${esc(rb.perso.prenom)}<sup>${rb.perso.niveau}</sup>${icHumeur}</span>` : '';
     const ouverte = rb.survol ? ' ouverte' : '';
     const lieu = donnees?.monde?.lieux?.[rb.nom];
     if (rb.estResident) {
       if (rb.mode === 'reunion' || rb.mode === 'vers-reunion') rb.texte(`<div class="b-act">${qui}🤝 revue de ${esc(rb.reunion || '')}</div>`, ouverte.trim());
+      else if (rb.mode === 'place' || rb.mode === 'vers-place') rb.texte(`<div class="b-act">${qui}${rb.rassemblement === 'fete' ? '🎶' : '☀️'}</div>`, 'mini' + ouverte);
       else rb.texte(`<div class="b-act">${qui}${rb.mode === 'maison' ? (rb.dortForce ? '💤' : '🔧') : '🏠'}</div>`, 'mini' + ouverte);
     }
     else if ((rb.mode === 'assis' || rb.mode === 'va') && (lieu?.lieu === 'cafe' || lieu?.lieu === 'jardin')) { const depuis = j.debut && donnees ? ` <small>· ${duree(donnees.genereA - j.debut)}</small>` : ''; rb.texte(`${tache}<div class="b-act">${qui}${lieu.lieu === 'cafe' ? '☕' : '🌿'} ${esc(lieu.raison)}${depuis}</div>`, (lieu.lieu === 'jardin' ? 'dort' : '') + ouverte); }
@@ -977,7 +1040,8 @@ function image() {
   });
   // baie de serveurs selon la charge
   const charge = donnees?.machine.charge[0] || 0, niveau = Math.min(14, Math.round(charge / 22 * 14));
-  BAIE.forEach(l => { const on = l.r < niveau && Math.sin(t * 0.006 * (1 + l.c * 0.3) + l.p) > -0.3; l.m.emissive.setHex(charge > 20 ? 0xff6b6b : 0x4ff0a0); l.m.emissiveIntensity = on ? 2.2 : 0.05; });
+  const surchauffe = donnees?.monde?.fatigue ? donnees.monde.fatigue.chaleur : charge > 20;
+  BAIE.forEach(l => { const on = l.r < niveau && Math.sin(t * 0.006 * (1 + l.c * 0.3) + l.p) > -0.3; l.m.emissive.setHex(surchauffe ? 0xff6b6b : 0x4ff0a0); l.m.emissiveIntensity = on ? 2.2 : 0.05; });
   voyantImp.emissiveIntensity = [...robots.values()].some(r => r.mode === 'imprime') ? 3 + Math.sin(t * 0.02) * 2 : 0.3;
   porteMat.emissiveIntensity = 1 + Math.sin(t * 0.002) * 0.4 + ([...robots.values()].some(r => r.mode === 'entre' || r.mode === 'sort') ? 2 : 0);
   // café : baby-foot et balle de ping-pong quand deux joueurs sont là
@@ -989,6 +1053,9 @@ function image() {
   lampadaires.forEach(m => m.emissiveIntensity = nuit ? 3 : 0.2);
   MAISONS.forEach(ms => ms.fenetre.emissiveIntensity = nuit ? 1.8 : 0.1);
   majFusees(dt);
+  LAMPIONS.visible = !!donnees?.monde?.fete; if (LAMPIONS.visible) LAMPIONS.children.forEach((l, i) => l.material.emissiveIntensity = 1.5 + Math.sin(t * 0.004 + i) * 1.2);
+  const chaud = !!donnees?.monde?.fatigue?.chaleur;
+  CHALEUR.forEach(c => { const u = (t * 0.0004 + c.ph) % 1; c.p.position.y = 3.5 + u * 2.2; c.p.material.opacity = chaud ? Math.sin(u * Math.PI) * 0.35 : 0; c.p.scale.x = 1 + Math.sin(t * 0.005 + c.ph * 9) * 0.25; });
   poussiere.rotation.y = t * 0.00002; poussiere.position.y = Math.sin(t * 0.0003) * 0.1;
   majGerbes(dt); majFeuilles(dt);
   if (t - tEcran > 500) { tEcran = t; dessinerEcran(); dessinerHorloge(); ambiance(); }
@@ -1178,12 +1245,26 @@ function panneauTrophees() {
   pn.classList.add('ouvert');
 }
 function fermerPanneau() { $('panneau').classList.remove('ouvert'); $('panneau').dataset.vue = ''; }
-$('panneau').addEventListener('click', e => { if (e.target.closest('[data-fermer]')) return fermerPanneau(); const l = e.target.closest('[data-lignee]'); if (l) ouvrirPerso(l.dataset.lignee); });
-const PANNEAUX = { trophees: () => panneauTrophees() };
+$('panneau').addEventListener('click', async e => {
+  if (e.target.closest('[data-copier]')) { const b = e.target.closest('[data-copier]'); try { await navigator.clipboard.writeText(await (await fetch('/api/chronique')).text()); b.textContent = 'Copié ✓'; } catch { b.textContent = 'Copie refusée'; } return; }
+  if (e.target.closest('[data-fermer]')) return fermerPanneau(); const l = e.target.closest('[data-lignee]'); if (l) ouvrirPerso(l.dataset.lignee); });
+async function panneauChronique() {
+  const pn = $('panneau'), premiere = pn.dataset.vue !== 'chronique'; pn.dataset.vue = 'chronique';
+  let c; try { c = await (await fetch('/api/chronique?format=json', { cache: 'no-store' })).json(); } catch { return; }
+  if (pn.dataset.vue !== 'chronique') return;
+  const corps = c.lignes.length ? c.lignes.slice().reverse().map(l => `<div class="ligne-p"${l.lignee ? ` data-lignee="${esc(l.lignee)}"` : ''}><small>${l.heure}</small>${esc(l.texte)}</div>`).join('') : '<div class="ligne-p">Journée calme : rien de notable pour l\'instant.</div>';
+  const html = `<h2>📜 ${esc(c.titre.toUpperCase())} <span><button type="button" data-copier>Copier</button> <a href="/api/chronique" target="_blank" style="font-size:11px;color:var(--doux)">texte</a> <button type="button" data-fermer>Fermer</button></span></h2>${corps}`;
+  if (premiere || pn.dataset.html !== html) { pn.innerHTML = html; pn.dataset.html = html; }
+  pn.classList.add('ouvert');
+}
+const PANNEAUX = { trophees: () => panneauTrophees(), chronique: () => panneauChronique() };
 const ouvrirPanneau = v => PANNEAUX[v]?.();
-cliquables.push(MUR_TROPHEES);
+cliquables.push(MUR_TROPHEES, COMPTEUR);
 const basculeTrophees = () => $('panneau').dataset.vue === 'trophees' ? fermerPanneau() : panneauTrophees();
 $('b-trophees').onclick = basculeTrophees;
+const basculeChronique = () => $('panneau').dataset.vue === 'chronique' ? fermerPanneau() : panneauChronique();
+$('b-chronique').onclick = basculeChronique;
+addEventListener('keydown', e => { if ((e.key === 'c' || e.key === 'C') && !e.metaKey && !e.ctrlKey && !/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName)) basculeChronique(); });
 addEventListener('keydown', e => { if ((e.key === 'r' || e.key === 'R') && !/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName)) basculeTrophees(); });
 function choisirVue(v) {
   tiroirVue = v;

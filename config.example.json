@@ -23,5 +23,10 @@
   "depot": null,
   "codexRun": null,
   "maisonsMax": 14,
-  "longueCommandeMinutes": 5
+  "longueCommandeMinutes": 5,
+  "reunion": "09:00",
+  "reunionMinutes": 15,
+  "fete": { "jour": 5, "heure": "17:00", "minutes": 120, "lotsMin": 2 },
+  "quotaBas": 20,
+  "chaleur": 0.75
 }

@@ -32,6 +32,11 @@ const DEFAUT = {
   codexRun: null,          // script du poste pour les nouvelles missions (ex. codex-run.sh du kit) ; sinon lanceur.sh
   maisonsMax: 14,          // personnages sans travail affichés dans les maisons
   longueCommandeMinutes: 5, // commande sans sortie depuis ce délai : l'agent patiente au café
+  reunion: '09:00',        // réunion du matin (jours ouvrés), heure locale ; null : pas de réunion
+  reunionMinutes: 15,
+  fete: { jour: 5, heure: '17:00', minutes: 120, lotsMin: 2 }, // fête de fin de semaine si assez de lots approuvés
+  quotaBas: 20,            // quota Codex restant (%) sous lequel les agents Codex bâillent
+  chaleur: 0.75,           // charge / cœurs au-dessus de laquelle la baie chauffe
 };
 const CONFIG = (() => {
   let c = { ...DEFAUT };
@@ -480,6 +485,10 @@ http.createServer((req, res) => {
   try {
     if (url.pathname.startsWith('/api/action/')) return void action(req, res, url);
     if (url.pathname === '/api/etat') { const e = etat(); return texte(res, 200, JSON.stringify({ ...e, monde: monde.enrichir(e), actions: !!CONFIG.actions, codexRun: !!CONFIG.codexRun }), 'application/json; charset=utf-8'); }
+    if (url.pathname === '/api/chronique') {
+      const j = url.searchParams.get('jour'), c = monde.chronique(j && /^\d{4}-\d{2}-\d{2}$/.test(j) ? new Date(j + 'T12:00:00') : new Date());
+      return url.searchParams.get('format') === 'json' ? texte(res, 200, JSON.stringify(c), 'application/json; charset=utf-8') : texte(res, 200, c.texte);
+    }
     if (url.pathname === '/api/carriere') { const c = monde.carriere(url.searchParams.get('id') || ''); return texte(res, c ? 200 : 404, JSON.stringify(c), 'application/json; charset=utf-8'); }
     if (url.pathname === '/api/questions') { const nom = url.searchParams.get('nom') || ''; return texte(res, 200, JSON.stringify(nomValide(nom) ? actions.questionsDe(nom) : []), 'application/json; charset=utf-8'); }
     if (url.pathname === '/api/rapport' || url.pathname === '/api/journal') {

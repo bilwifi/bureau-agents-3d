@@ -169,6 +169,25 @@ export function creerMonde({ ICI, CONFIG }) {
       }
     }
     evenements.sort((a, b) => a.date - b.date);
+    // Moral : nuage après des remarques répétées ou un échec, entrain après une approbation ou une qualification (6 h).
+    const recent = d => d && maintenant - d < 6 * 3600_000;
+    for (const p of persos.values()) {
+      const fin = p.travaux.filter(t => t.fin && !['actif', 'silencieux'].includes(t.statut)).sort((a, b) => b.fin - a.fin)[0];
+      let moral = { etat: 'calme', raison: null };
+      if (p.role === 'production') {
+        const rv = [p.lot].flatMap(l => revuesLot.get(l) || []).filter(r => maintenant - r.date < 24 * 3600_000);
+        const [d1, d2] = rv.slice(-2).reverse();
+        if (d1?.ok && recent(d1.date)) moral = { etat: 'entrain', raison: `${lotLisible(p.lot)} vient d'être approuvé` };
+        else if (d1 && d2 && !d1.ok && !d2.ok) moral = { etat: 'nuage', raison: `deux revues de suite avec des points à revoir sur ${lotLisible(p.lot)}` };
+      } else if (p.role === 'revue') {
+        const ap = p.travaux.filter(t => t.fin && t.verdict && t.verdict.p0 === 0 && t.verdict.p1 === 0).sort((a, b) => b.fin - a.fin)[0];
+        if (recent(ap?.fin)) moral = { etat: 'entrain', raison: `a approuvé ${lotLisible(ap.lot)}` };
+      } else if (p.role === 'integration' && recent(fin?.fin) && fin.verdict?.qualifie != null) {
+        moral = fin.verdict.qualifie ? { etat: 'entrain', raison: `${lotLisible(fin.lot)} qualifié` } : { etat: 'nuage', raison: `${lotLisible(fin.lot)} non qualifié` };
+      }
+      if (fin && fin.statut !== 'termine' && recent(fin.fin)) moral = { etat: 'nuage', raison: "dernier travail arrêté avant la fin" };
+      p.moral = moral;
+    }
     return { persos, evenements, revuesLot };
   }
 
@@ -178,7 +197,7 @@ export function creerMonde({ ICI, CONFIG }) {
     const dernier = p.travaux.filter(t => t.fin).sort((a, b) => b.fin - a.fin)[0] || null;
     return { id: p.id, prenom: p.prenom, agent: p.agent, role: p.role, lot: p.lot, couleur: p.couleur, accessoire: p.accessoire, couleurAccessoire: p.couleurAccessoire, trait: p.trait,
       xp: p.xp, xpSemaine: p.xpSemaine, niveau: n, titre: titreDe(n), xpNiveau: xpPour(n), xpSuivant: xpPour(n + 1),
-      badges: p.badges.map(b => ({ id: b.id, nom: b.nom, icone: b.icone, date: b.date })), stats: s, taux,
+      badges: p.badges.map(b => ({ id: b.id, nom: b.nom, icone: b.icone, date: b.date })), stats: s, taux, moral: p.moral,
       derniereFin: dernier?.fin || null, dernierTravail: dernier?.nom || null };
   }
 
@@ -244,10 +263,41 @@ export function creerMonde({ ICI, CONFIG }) {
       .sort((a, b) => personnages[b.id].derniereFin - personnages[a.id].derniereFin).slice(0, CONFIG.maisonsMax ?? 14).map(p => p.id);
     for (const r of revues) if (!residents.includes(r.producteur)) residents.push(r.producteur);
     return {
-      personnages, affectations, trophees, lieux: lieux(etat), revues, residents,
+      personnages, affectations, trophees, lieux: lieux(etat), revues, residents, ...rythme(etat, evenements),
       employeSemaine: semaine ? { lignee: semaine.id, prenom: semaine.prenom, xp: semaine.xpSemaine } : null,
       evenements: evenements.filter(e => e.date > maintenant - 3 * 86400_000).slice(-80),
     };
+  }
+
+  // ---------- Rythme du campus ----------
+  const minutes = h => { const m = String(h || '').match(/^(\d{1,2}):(\d{2})$/); return m ? Number(m[1]) * 60 + Number(m[2]) : null; };
+  function rythme(etat, evenements) {
+    const maintenant = new Date(etat.genereA), mn = maintenant.getHours() * 60 + maintenant.getMinutes(), jour = maintenant.getDay();
+    const lundi = new Date(maintenant); lundi.setHours(0, 0, 0, 0); lundi.setDate(lundi.getDate() - ((jour + 6) % 7));
+    const approuves = new Set(evenements.filter(e => e.type === 'approbation' && e.date >= lundi.getTime()).map(e => e.lot));
+    const pilotes = evenements.filter(e => e.type === 'integration');
+    const debutR = minutes(CONFIG.reunion), dureeR = CONFIG.reunionMinutes ?? 15;
+    const reunion = debutR != null && jour >= 1 && jour <= 5 && mn >= debutR && mn < debutR + dureeR;
+    const f = CONFIG.fete || {}, debutF = minutes(f.heure);
+    const fete = !!f && debutF != null && jour === (f.jour ?? 5) && mn >= debutF && mn < debutF + (f.minutes ?? 120) && approuves.size >= (f.lotsMin ?? 2);
+    const charge = etat.machine?.charge?.[0] ?? 0, coeurs = etat.machine?.coeurs || 1;
+    return {
+      reunion, fete, heureReunion: CONFIG.reunion || null,
+      compteur: { pilotesQualifies: pilotes.length, dernierPilote: pilotes.at(-1)?.lot || null, lotsApprouvesSemaine: [...approuves], lotsSemaineMin: f.lotsMin ?? 2 },
+      fatigue: { quotaBas: !!etat.quota && etat.quota.restant < (CONFIG.quotaBas ?? 20), chaleur: charge / coeurs > (CONFIG.chaleur ?? 0.75), charge, coeurs },
+    };
+  }
+
+  // ---------- Chronique du jour, en langage simple ----------
+  const TYPES_CHRONIQUE = new Set(['approbation', 'integration', 'non-qualifie', 'remarques', 'badge', 'niveau', 'echec']);
+  function chronique(jour = new Date()) {
+    const { evenements } = calculer(Date.now());
+    const d0 = new Date(jour); d0.setHours(0, 0, 0, 0); const d1 = d0.getTime() + 86400_000;
+    const lignes = evenements.filter(e => TYPES_CHRONIQUE.has(e.type) && e.date >= d0.getTime() && e.date < d1)
+      .map(e => ({ heure: new Date(e.date).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }), type: e.type, texte: e.texte, lignee: e.lignee, date: e.date }));
+    const titre = `Chronique du ${d0.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })}`;
+    const texte = [titre, '', ...(lignes.length ? lignes.map(l => `${l.heure} — ${l.texte}`) : ['Journée calme : rien de notable pour l\'instant.'])].join('\n') + '\n';
+    return { titre, lignes, texte };
   }
 
   // Fiche carrière détaillée d'un personnage (tiroir).
@@ -261,5 +311,5 @@ export function creerMonde({ ICI, CONFIG }) {
       historique: p.travaux.slice().sort((a, b) => (b.fin || b.debut || 0) - (a.fin || a.debut || 0)).slice(0, 40).map(t => ({ nom: t.nom, role: t.role, lot: t.lot, tour: t.tour, debut: t.debut, fin: t.fin, statut: t.statut, verdict: t.verdict })) };
   }
 
-  return { enrichir, carriere, ligneeDe };
+  return { enrichir, carriere, chronique, ligneeDe };
 }

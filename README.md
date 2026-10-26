@@ -46,6 +46,10 @@ Les valeurs par défaut conviennent à un poste qui utilise le kit superviseur J
 | `fenetreHeures` | historique affiché | `48` |
 | `maisonsMax` | personnages sans travail affichés dans les maisons | `14` |
 | `longueCommandeMinutes` | commande sans sortie depuis ce délai : l'agent patiente au café | `5` |
+| `reunion`, `reunionMinutes` | heure de la réunion du matin (jours ouvrés, `null` pour aucune) et durée | `"09:00"`, `15` |
+| `fete` | fête de fin de semaine : `jour` (0 = dimanche), `heure`, `minutes`, `lotsMin` | `{ "jour": 5, "heure": "17:00", "minutes": 120, "lotsMin": 2 }` |
+| `quotaBas` | quota Codex restant (%) sous lequel les agents bâillent | `20` |
+| `chaleur` | charge / cœurs au-dessus de laquelle la baie chauffe | `0.75` |
 
 Variables d'environnement prioritaires : `PORT`, `CODEX_OUT`, `CLAUDE_PROJECTS`, `CAMPAIGN_LOCK` (listes séparées par `:`), `BUREAU_CONFIG` (chemin d'un autre fichier de configuration).
 
@@ -108,9 +112,17 @@ Le bureau est devenu un campus : les zones d'origine (atelier, salle de revue, i
 
 Un personnage qui reprend du travail quitte sa maison et marche jusqu'à son poste ; à la fin, il passe à l'imprimante puis rentre chez lui. Les nouveaux venus arrivent par le portail du campus.
 
+### Humeur, événements, chronique
+
+- **Moral** (calculé sur les verdicts) : ☁️ petit nuage pour un producteur dont les deux dernières revues ont relevé des points, ou dont le dernier travail s'est arrêté avant la fin ; ✨ entrain (étincelle, petits sauts) après une approbation ou une intégration qualifiée (6 h).
+- **Fatigue** : quota Codex sous `quotaBas` % → les agents Codex bâillent 🥱 ; charge machine au-dessus de `chaleur` × nombre de cœurs → la baie de serveurs rougit et dégage de la chaleur.
+- **Réunion du matin** à l'heure `reunion` (jours ouvrés, `reunionMinutes`) : les personnages sans travail se retrouvent sur la place, autour du **compteur d'assemblage** (pilotes qualifiés, lots approuvés de la semaine). Ceux qui travaillent continuent.
+- **Fête de fin de semaine** (`fete` : jour, heure, durée, `lotsMin`) si au moins `lotsMin` lots ont été approuvés depuis lundi : lampions et danse sur la place.
+- **Chronique du jour** en langage simple (« Chloé a fait approuver hub-ui-mobile après deux tours. ») : bouton 📜 ou touche `C`, clic sur le compteur d'assemblage, ou **`/api/chronique`** (texte brut, à recopier ailleurs ; `?jour=AAAA-MM-JJ`, `?format=json`).
+
 ## Commandes du bureau 3D
 
-Glisser : tourner · molette : zoom · double-clic : recentrer · clic sur un robot : consigne, rapport, journal, questions et actions · `M` : nouvelle mission · `L` : tâches affichées ou non · `R` : mur des trophées · `T` : caméra automatique · `N` : jour / nuit · `Échap` : fermer.
+Glisser : tourner · molette : zoom · double-clic : recentrer · clic sur un robot : consigne, rapport, journal, questions et actions · `M` : nouvelle mission · `L` : tâches affichées ou non · `R` : mur des trophées · `C` : chronique · `T` : caméra automatique · `N` : jour / nuit · `Échap` : fermer.
 
 ## Confidentialité
 
