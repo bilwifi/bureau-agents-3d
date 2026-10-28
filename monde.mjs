@@ -6,9 +6,23 @@ import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 
 // ---------- Identité stable, tirée du nom de la lignée ----------
-const PRENOMS = ['Ada', 'Bola', 'Céleste', 'Dina', 'Elikia', 'Fanta', 'Grâce', 'Hiro', 'Ilunga', 'Jade', 'Kiese', 'Lumbu', 'Malaika', 'Nkosi', 'Olga', 'Pemba',
-  'Rosine', 'Sefu', 'Tshala', 'Ulla', 'Vava', 'Wema', 'Yaya', 'Zola', 'Amani', 'Baraka', 'Chloé', 'Dibu', 'Esther', 'Fiston', 'Gédéon', 'Haïfa', 'Imani', 'Josué',
-  'Kalala', 'Léa', 'Mbuyi', 'Nadia', 'Omari', 'Pacifique', 'Rafiki', 'Sifa', 'Tumba', 'Uzima', 'Victoire', 'Yannick', 'Zawadi', 'Mosa'];
+const PRENOMS = [
+  'Ada', 'Bola', 'Céleste', 'Dina', 'Elikia', 'Fanta', 'Grâce', 'Hiro', 'Ilunga', 'Jade', 'Kiese', 'Lumbu', 'Malaika', 'Nkosi', 'Olga', 'Pemba', 'Rosine', 'Sefu',
+  'Tshala', 'Ulla', 'Vava', 'Wema', 'Yaya', 'Zola', 'Amani', 'Baraka', 'Chloé', 'Dibu', 'Esther', 'Fiston', 'Gédéon', 'Haïfa', 'Imani', 'Josué', 'Kalala', 'Léa',
+  'Mbuyi', 'Nadia', 'Omari', 'Pacifique', 'Rafiki', 'Sifa', 'Tumba', 'Uzima', 'Victoire', 'Yannick', 'Zawadi', 'Mosa', 'Abeni', 'Adama', 'Afia', 'Akili', 'Alima',
+  'Amina', 'Anaïs', 'Andile', 'Angèle', 'Anouk', 'Arlette', 'Asha', 'Aurore', 'Ayo', 'Bahati', 'Basile', 'Béa', 'Benoît', 'Bijou', 'Blaise', 'Bontu', 'Boris', 'Carmen',
+  'Cédric', 'Chantal', 'Chiara', 'Chidi', 'Christelle', 'Clarisse', 'Claude', 'Coralie', 'Dalia', 'Damien', 'Daouda', 'Delphine', 'Désiré', 'Diane', 'Djeneba', 'Dorcas',
+  'Edmée', 'Efua', 'Élise', 'Émile', 'Enzo', 'Ernest', 'Estelle', 'Eva', 'Fabrice', 'Faïda', 'Farah', 'Félicité', 'Fidèle', 'Flavie', 'Florent', 'Gaël', 'Gaspard',
+  'Ghislain', 'Gilda', 'Gloire', 'Habib', 'Hadassa', 'Hélène', 'Héritier', 'Honorine', 'Idris', 'Ifeoma', 'Inès', 'Irène', 'Isaac', 'Ivoire', 'Jabari', 'Jeanne',
+  'Joëlle', 'Jonas', 'Josiane', 'Judith', 'Jules', 'Kadi', 'Kahindo', 'Kamba', 'Kanku', 'Kapinga', 'Kasongo', 'Kayembe', 'Kendi', 'Kenza', 'Kibala', 'Kimia', 'Kinsala',
+  'Kiyana', 'Kofi', 'Kombo', 'Lavinia', 'Léandre', 'Léonie', 'Lisanga', 'Litsa', 'Lola', 'Lomami', 'Louis', 'Lucie', 'Luzolo', 'Mado', 'Maëlle', 'Makena', 'Malik',
+  'Mamie', 'Manzi', 'Marceline', 'Masika', 'Matondo', 'Mavungu', 'Mayele', 'Mbali', 'Mbiya', 'Merveille', 'Milena', 'Mira', 'Miyoko', 'Moïse', 'Mpia', 'Mujinga',
+  'Mukendi', 'Mwamba', 'Mwanza', 'Nala', 'Naomi', 'Ndaya', 'Ngalula', 'Nia', 'Nkulu', 'Noé', 'Nsimba', 'Nyota', 'Odile', 'Olive', 'Oscar', 'Pascaline', 'Patience',
+  'Paulin', 'Pépin', 'Perle', 'Placide', 'Prisca', 'Prosper', 'Rachel', 'Rehema', 'Rémi', 'Ruth', 'Sabine', 'Sadia', 'Salomé', 'Samira', 'Sandrine', 'Saran', 'Sefa',
+  'Séraphin', 'Serena', 'Shani', 'Siméon', 'Solange', 'Sona', 'Tabitha', 'Tamara', 'Tanu', 'Téo', 'Thandi', 'Tiana', 'Timothée', 'Toko', 'Tshibola', 'Tshilanda',
+  'Valère', 'Véra', 'Vianney', 'Wanza', 'Wivine', 'Yaël', 'Yuma', 'Zaïna', 'Zanele', 'Zuri', 'Ève', 'Opa', 'Kapi', 'Lusamba', 'Mbombo', 'Nzuzi', 'Bisola', 'Dimitri',
+  'Elio', 'Fleur', 'Iris', 'Jasmin', 'Kaïs', 'Lina', 'Maël', 'Nour', 'Rayan', 'Selma', 'Talia', 'Yanis', 'Zélie', 'Bintou', 'Ilana', 'Kalinda', 'Lisa', 'Mosi', 'Neema',
+  'Oumou', 'Pili', 'Sanaa', 'Tumaini'];
 const COULEURS = ['#c9d2e3', '#f2c14e', '#7fd1b9', '#f78c6b', '#9b8cff', '#6cc3f0', '#ef6f8a', '#a6d96a', '#e0b084', '#5fd3d0', '#d58cf0', '#ffd6a5'];
 const ACCESSOIRES = ['casquette', 'echarpe', 'lunettes', 'noeud', 'casque', 'fleur', 'chapeau', 'sac'];
 const TRAITS = ['curieux', 'méthodique', 'enjoué', 'calme', 'perfectionniste', 'rêveur', 'bavard', 'têtu', 'généreux', 'prudent', 'malicieux', 'serein'];
@@ -48,6 +62,8 @@ export function creerMonde({ ICI, CONFIG }) {
   const FICHIER = path.join(ICI, 'donnees', 'monde.json');
   let memoire = { version: 1, travaux: {}, noms: {} };
   try { const m = JSON.parse(fs.readFileSync(FICHIER, 'utf8')); if (m.version === 1) memoire = { ...memoire, ...m }; } catch {}
+  // Anciennes attributions « Prénom 76 » (liste trop courte) : réattribuées une fois ; les autres prénoms restent stables.
+  for (const [l, p] of Object.entries(memoire.noms)) if (/ \d+$/.test(p)) delete memoire.noms[l];
   let signature = '';
 
   // Lignée : même agent, même rôle, même lot. La correction appartient au producteur du lot ;
@@ -64,7 +80,8 @@ export function creerMonde({ ICI, CONFIG }) {
     const h = hachage(lignee);
     let p = null;
     for (let i = 0; i < PRENOMS.length && !p; i++) { const c = PRENOMS[(h + i) % PRENOMS.length]; if (!pris.has(c)) p = c; }
-    p ||= PRENOMS[h % PRENOMS.length] + ' ' + (1 + Object.keys(memoire.noms).length);
+    // Liste épuisée : prénom + initiale (« Ada K. »), toujours tirés du nom de la lignée.
+    for (let i = 0; i < 26 * PRENOMS.length && !p; i++) { const c = `${PRENOMS[(h + i) % PRENOMS.length]} ${String.fromCharCode(65 + (hachage(lignee + i) % 26))}.`; if (!pris.has(c)) p = c; }
     memoire.noms[lignee] = p;
     return p;
   }

@@ -21,8 +21,8 @@ const DEFAUT = {
   consignes: ['/private/tmp/claude-*/*/*/scratchpad', '/private/tmp/claude-*/*/*/scratchpad/codex'],
   claudeProjects: ['~/.claude/projects/*'],
   claudeProjectFilter: null,
-  // Sessions natives Codex Desktop/CLI : lues par défaut sous Windows seulement (ailleurs, codex-run.sh écrit les journaux suivis ci-dessus).
-  codexSessions: process.platform === 'win32' ? [path.join(process.env.CODEX_HOME || path.join(os.homedir(), '.codex'), 'sessions')] : [],
+  // Sessions natives Codex Desktop/CLI ; celles déjà suivies par un journal codex-run.sh sont écartées (même identifiant).
+  codexSessions: [path.join(process.env.CODEX_HOME || path.join(os.homedir(), '.codex'), 'sessions')],
   campaignLock: '/tmp/jnapps-campaign.lock',
   placesMax: 6,
   silenceMinutes: 15,

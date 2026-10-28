@@ -12,7 +12,7 @@
     "~/.claude/projects/*"
   ],
   "claudeProjectFilter": null,
-  "codexSessions": [],
+  "codexSessions": ["~/.codex/sessions"],
   "campaignLock": "/tmp/jnapps-campaign.lock",
   "placesMax": 6,
   "silenceMinutes": 15,
