@@ -30,6 +30,12 @@ export function appliquerEvenement(s, e) {
     else if (p.type === 'user_message') {
       const t = demandeUtile(p.message || ''); if (t) { activite(); s.demande = t.slice(0, 12000); s.etat = 'actif'; }
     } else if (p.type === 'agent_message') { activite(); s.message = p.message?.slice(0, 12000) || s.message; }
+    else if (p.type === 'token_count' && p.rate_limits?.primary?.used_percent != null) {
+      // Quota du compte connecté au moment de l'événement : le plus récent, toutes sessions confondues, fait foi.
+      const q = p.rate_limits.primary, r = q.resets_at ? new Date(q.resets_at * 1000) : null, d = n => String(n).padStart(2, '0');
+      s.quota = { utilise: q.used_percent, restant: Math.round((100 - q.used_percent) * 10) / 10, date: ts,
+        reinit: r ? `${r.getFullYear()}-${d(r.getMonth() + 1)}-${d(r.getDate())} ${d(r.getHours())}:${d(r.getMinutes())}` : '?' };
+    }
     return;
   }
   if (e.type !== 'response_item') return;
@@ -136,5 +142,11 @@ export function creerLecteurCodex({ racines = [path.join(process.env.CODEX_HOME 
     if (vue === 'rapport') return s.rapport || null;
     return [`Session Codex : ${s.id}`, `Dernière activité : ${new Date(s.date).toISOString()}`, s.demande && `Demande : ${s.demande}`, s.message && `Message : ${s.message}`, s.commande && `Outil : ${s.commande.commande}`].filter(Boolean).join('\n\n');
   }
-  return { travaux, contenu };
+  // À appeler après travaux() : seuls les journaux de la fenêtre ont été lus.
+  function quota() {
+    let q = null;
+    for (const { s } of cache.values()) if (s.quota && (!q || s.quota.date > q.date)) q = s.quota;
+    return q;
+  }
+  return { travaux, contenu, quota };
 }

@@ -36,7 +36,9 @@ Le serveur détecte aussi les conversations enregistrées localement par Codex D
 Windows comme sous macOS et Linux. Le dossier par défaut est `~/.codex/sessions`
 (`%USERPROFILE%\.codex\sessions` sous Windows), ou `sessions` sous `CODEX_HOME` si cette
 variable est définie. Aucun script `codex-run.sh` n'est nécessaire
-pour ces conversations. Pour un autre emplacement, ajouter dans `config.json` :
+pour ces conversations. Le quota Codex affiché vient du relevé le plus récent de ces
+conversations (ou de l'en-tête `codex-run.sh` s'il est plus récent) : il suit donc aussitôt un
+changement de compte. Pour un autre emplacement, ajouter dans `config.json` :
 
 ```json
 {

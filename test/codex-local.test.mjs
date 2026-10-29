@@ -68,3 +68,12 @@ test('une conversation déjà suivie par son journal codex-run.sh n\'est pas com
   assert.equal(lecteur.travaux(base + 2000).length, 1);
   assert.equal(lecteur.travaux(base + 2000, new Set(['test-1'])).length, 0);
 });
+
+test('Quota : le relevé le plus récent suit un changement de compte, même pour une session déjà suivie', t => {
+  const { file, lecteur } = fixture(t);
+  const releve = (pct, delta) => ligne(event('event_msg', { type: 'token_count', rate_limits: { primary: { used_percent: pct, resets_at: 1793775082 } } }, delta));
+  fs.appendFileSync(file, releve(100, 2000) + releve(9, 3000));
+  lecteur.travaux(base + 4000, new Set(['test-1']));
+  const q = lecteur.quota();
+  assert.equal(q.utilise, 9); assert.equal(q.restant, 91); assert.match(q.reinit, /^\d{4}-\d\d-\d\d \d\d:\d\d$/);
+});

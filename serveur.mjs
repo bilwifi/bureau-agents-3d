@@ -280,7 +280,7 @@ function agentsCodex(maintenant) {
       verdict: verdict(rapport), aRapport: !!rapport,
     });
   }
-  return { travaux, quota };
+  return { travaux, quota, quotaDate };
 }
 
 // ---------- Agents Claude (sessions et sous-agents) ----------
@@ -434,6 +434,13 @@ function texteClaude(nom, vue) {
 }
 
 // ---------- État global ----------
+// Quota Codex : le relevé le plus récent entre l'en-tête codex-run.sh et les conversations Codex
+// (ces dernières suivent aussitôt un changement de compte).
+function quotaCodex(codex) {
+  const natif = codexLocal.quota();
+  if (natif && (!codex.quota || natif.date > codex.quotaDate)) { const { date, ...q } = natif; return q; }
+  return codex.quota;
+}
 function etat() {
   const maintenant = Date.now();
   const codex = agentsCodex(maintenant);
@@ -442,7 +449,7 @@ function etat() {
   const natifs = codexLocal.travaux(maintenant, new Set(codex.travaux.map(t => t.sessionCodex).filter(Boolean)));
   const travaux = [...codex.travaux, ...natifs, ...claude.agents].sort((a, b) => (b.debut || 0) - (a.debut || 0));
   return {
-    genereA: maintenant, poste: os.hostname(), travaux, sessions: claude.sessions, quota: codex.quota,
+    genereA: maintenant, poste: os.hostname(), travaux, sessions: claude.sessions, quota: quotaCodex(codex),
     machine: { charge: os.loadavg().map(x => Math.round(x * 10) / 10), coeurs: os.cpus().length, batterie: batterie() },
     places: placesCampagne(), placesMax: CONFIG.placesMax,
   };
